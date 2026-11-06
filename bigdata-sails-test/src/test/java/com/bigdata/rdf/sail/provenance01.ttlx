@@ -2,13 +2,14 @@
 @prefix bd:       <http://bigdata.com/RDF#> .
 @prefix dc:         <http://purl.org/dc/terms/> .
 @prefix foo:         <http://www.foo.org/> .
+@prefix xsd:         <http://www.w3.org/2001/XMLSchema#> .
 
 foo:x rdf:type foo:A .
-<<foo:x rdf:type foo:A>> dc:creator "bryan" .
+<<foo:x rdf:type foo:A>> dc:creator "bryan"^^xsd:string .
 
 foo:y rdf:type foo:B .
-<<foo:y rdf:type foo:B>> dc:creator "bryan" ;
-     dc:creator "mike" .
+<<foo:y rdf:type foo:B>> dc:creator "bryan"^^xsd:string ;
+     dc:creator "mike"^^xsd:string .
 
 foo:z rdf:type foo:C .
-<<foo:z rdf:type foo:C>> dc:creator "mike" .
+<<foo:z rdf:type foo:C>> dc:creator "mike"^^xsd:string .
