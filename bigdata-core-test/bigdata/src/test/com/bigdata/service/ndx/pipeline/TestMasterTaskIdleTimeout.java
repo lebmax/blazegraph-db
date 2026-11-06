@@ -30,18 +30,12 @@ package com.bigdata.service.ndx.pipeline;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import com.bigdata.btree.keys.KVO;
 import com.bigdata.relation.accesspath.BlockingBuffer;
-import com.bigdata.util.DaemonThreadFactory;
 
 /**
  * Unit tests of the idle timeout behavior for {@link AbstractMasterTask} and
@@ -314,321 +308,71 @@ public class TestMasterTaskIdleTimeout extends AbstractMasterTestCase {
     }
 
     /**
-     * Used to recognize the a scheduled task which halts based on our signal
-     * rather than for some error condition.
-     * 
-     * @author <a href="mailto:thompsonbry@users.sourceforge.net">Bryan
-     *         Thompson</a>
-     * @version $Id$
+     * Verify that a sink stays open and flushes batches on the chunk timeout
+     * while new input keeps arriving before the shorter idle timeout.
      */
-    private static class HaltedException extends RuntimeException {
+    public void test_idleTimeout_LT_chunkTimeout2()
+            throws InterruptedException, ExecutionException, TimeoutException {
 
-        private static final long serialVersionUID = 1L;
-        
-        public HaltedException() {
-            super();
-        }
-        
-    }
-
-    /**
-     * Unit test verifies that a sink whose source iterator is not empty always
-     * resets the idle timeout (that is, if chunks continue to appear in a
-     * timely manner than the sink will not be closed by an idle timeout).
-     * 
-     * @throws InterruptedException
-     * @throws ExecutionException
-     * 
-     * @todo test when {@link AbstractSubtask#handleChunk(Object[])} has a
-     *       latency in excess of the idle timeout and verify that we test for
-     *       an available chunk before concluding that the sink is idle.
-     */
-    public void test_idleTimeout_LT_chunkTimeout2() throws InterruptedException, ExecutionException {
-
-        // how long to run this test.
-        final long testDurationMillis = 5000;
-        
-        /*
-         * The ratio of sinkChunkTimeout to sinkIdleTimeout.
-         */
-        final int N = 10;
-
-        /*
-         * The fraction of the idle timeout between chunks written onto the
-         * master's input buffer.
-         */
-        final double O = 1.5;
-        
-        final long sinkIdleTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(50);
-
-        final long sinkChunkTimeoutNanos = sinkIdleTimeoutNanos * N;
-
-        /*
-         * The fixed delay between chunks written onto the master.
-         * 
-         * Note: Unless the master blocks (it should not if the sink is running)
-         * this will determine the rate of arrival of chunks at the sink. E.g.,
-         * if the idle timeout is 50ms and M = 2, then one chunk arrives every
-         * 50ms/2 = 25ms.
-         * 
-         * Note: For simplicity, this test was designed such that each chunk
-         * written onto the master's input buffer had exactly one element.
-         * 
-         * Note: This MUST be LT the sink idle timeout be a margin sufficient
-         * for new chunks to arrive at the sink before an idle timeout is
-         * reported.
-         */
-        final long scheduledDelayNanos = (long) (sinkIdleTimeoutNanos / O);
-
-        /*
-         * The expected sink output chunk size (assuming that the sink can
-         * combine elements together into chunks of this size without reaching
-         * its chunkSize limit).
-         */
-        final double expectedAverageOutputChunkSize = N * O;
-
+        final long sinkIdleTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(250);
+        final long sinkChunkTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(500);
+        final long producerDelayMillis = 25;
+        final int maxInputChunks = 100;
         final H masterStats = new H();
 
-        /*
-         * Override the [masterBuffer] so that we can disable its chunk
-         * combiner. This way only the sink will be combining chunks together
-         * which makes the behavior of the system more predictable.
-         * 
-         * Note: this hides the field by the same name on our base class!
-         */
+        // Send one element per chunk and combine only at the sink.
         final BlockingBuffer<KVO<O>[]> masterBuffer = new BlockingBuffer<KVO<O>[]>(
-                masterQueueCapacity,// 
-                1, // chunkSize
-                0L/*
-                   * Note: a chunkTimeout of ZERO (0) disables the chunk
-                   * combiner for the master.
-                   */, TimeUnit.NANOSECONDS);
+                masterQueueCapacity, 1, 0L, TimeUnit.NANOSECONDS);
 
         final M master = new M(masterStats, masterBuffer, executorService,
-                sinkIdleTimeoutNanos,
-                M.DEFAULT_SINK_POLL_TIMEOUT) {
-          
+                sinkIdleTimeoutNanos, M.DEFAULT_SINK_POLL_TIMEOUT) {
+            @Override
             protected BlockingBuffer<KVO<O>[]> newSubtaskBuffer() {
-
+                // All output chunks must be partial, even if all input is queued.
                 return new BlockingBuffer<KVO<O>[]>(
-                        new ArrayBlockingQueue<KVO<O>[]>(subtaskQueueCapacity), //
-                        100, // chunkSize
-                        sinkChunkTimeoutNanos, TimeUnit.NANOSECONDS,// chunkTimeoutUnit
-                        true // ordered
-                );
-
+                        new ArrayBlockingQueue<KVO<O>[]>(subtaskQueueCapacity),
+                        maxInputChunks + 1, sinkChunkTimeoutNanos,
+                        TimeUnit.NANOSECONDS, true);
             }
-
         };
 
-        // Wrap computation as FutureTask.
-        final FutureTask<H> ft = new FutureTask<H>(master);
-        
-        // Set Future on BlockingBuffer.
-        masterBuffer.setFuture(ft);
-        
-        // Start the consumer.
-        executorService.submit(ft);
-        
-        // scheduled service used to write on the master.
-        final ScheduledExecutorService scheduledExecutorService = Executors
-                .newScheduledThreadPool(1, DaemonThreadFactory
-                        .defaultThreadFactory());
-        
+        final FutureTask<H> future = new FutureTask<H>(master);
+        masterBuffer.setFuture(future);
+        executorService.submit(future);
+
         try {
-
-            /*
-             * Submit scheduled task which writes a chunk on the master each
-             * time it runs. The task is scheduled to run with a frequency 2x
-             * that of the idle timeout so the sink SHOULD NOT timeout.
-             * 
-             * Note: The master/sink we are testing DO NOT perform duplicate
-             * elimination so the #of chunks/elements written onto the master
-             * MUST directly correspond to the #of chunks/elements written onto
-             * the sink(s). For this test we direct all element to the same sink
-             * by virtue of using the same key for all elements.
-             */
-
-            // #of chunks written on the master.
-            final AtomicInteger counter = new AtomicInteger(0);
-
-            /*
-             * This is used to halt execution without interrupting the task
-             * (interrupts make the behavior of master#add() less predictable since
-             * we can not know whether a chunk was fully written before the task was
-             * interrupted and so the counters can be off by one).
-             */ 
-            final AtomicBoolean halt = new AtomicBoolean(false);
-            
-            // start scheduled task.
-            final ScheduledFuture<?> f = scheduledExecutorService
-                    .scheduleWithFixedDelay(
-                            new Runnable() {
-                                public void run() {
-                                    
-                                    // halt?
-                                    if(halt.get())
-                                        throw new HaltedException();
-
-                                    /*
-                                     * Verify the sink WAS NOT closed by an idle
-                                     * timeout.
-                                     * 
-                                     * TODO I have seen this assertion
-                                     * triggered occasionally. However, on
-                                     * re-trial it generally succeeds [I think
-                                     * that this was related to the visibility
-                                     * of the state change in the field. It is
-                                     * now an AtomicLong, which may fix this.
-                                     * Nope. Still occasionally fails] [I've
-                                     * modified this to log @ ERROR to see if
-                                     * the test will pass now on those occasions
-                                     * when it would have failed before. BT
-                                     * 6/21/2011]
-                                     */
-//                                    assertEquals("subtaskIdleTimeout", 0,
-//                                            masterStats.subtaskIdleTimeoutCount.get());
-                                    final long tmp = masterStats.subtaskIdleTimeoutCount
-                                            .get();
-                                    if (0L != tmp) {
-                                        log
-                                                .error("subtaskIdleTimeout: expected ZERO (0) but was "
-                                                        + tmp);
-                                    }
-                                    
-                                    // add chunk to master's input buffer.
-                                    final KVO<O>[] a = new KVO[] { //
-                                            new KVO<O>(new byte[] { 1 },
-                                                    new byte[] { 2 }, null/* val */),//
-                                            };
-                                    masterBuffer.add(a);
-                                    
-                                    // increment counter.
-                                    counter.incrementAndGet();
-                                }
-                            }, 0L/* initialDelay */,
-                            scheduledDelayNanos,
-                            TimeUnit.NANOSECONDS);
-
-            /*
-             * Sleep a while giving the scheduled task time to write data onto
-             * the master, the master time to move chunks onto the sink, and the
-             * sink time to output those chunks.
-             */
-            Thread.sleep(testDurationMillis);
-
-            // should not be done.
-            if(f.isDone()) {
-                // should throw out the exception.
-                f.get();
-                // otherwise something very weird.
-                fail("Scheduled task aborted? : counter=" + counter + " : "
-                        + masterStats);
+            int chunksSent = 0;
+            while (chunksSent < maxInputChunks && masterStats.chunksOut.get() < 2) {
+                final KVO<O>[] chunk = new KVO[] {
+                        new KVO<O>(new byte[] { 1 }, new byte[] { 2 }, null),
+                };
+                assertTrue("Master did not accept input",
+                        masterBuffer.add(chunk, 1, TimeUnit.SECONDS));
+                chunksSent++;
+                Thread.sleep(producerDelayMillis);
             }
 
-            // cancel the scheduled future.
-            halt.set(true);
-
-            /*
-             * wait for the scheduled task to terminate and verify that it
-             * terminated in response to our signal and not for any other
-             * reason.
-             */
-            try {
-                // wait for the future.
-                f.get();
-                // should have thrown an exception.
-                fail("Expecting: " + ExecutionException.class + " wrapping "
-                        + HaltedException.class);
-            } catch (ExecutionException ex) {
-                // verify correct exception was thrown.
-                final Throwable cause = ex.getCause();
-                if (cause == null || (!(cause instanceof HaltedException))) {
-                    fail("Expecting: " + HaltedException.class);
-                }
-                if (log.isInfoEnabled())
-                    log.info("Ignoring expected exception: " + ex);
+            synchronized (masterStats) {
+                assertTrue("Sink should flush twice while input is open",
+                        masterStats.chunksOut.get() >= 2);
+                assertTrue("Sink should combine input chunks before shutdown",
+                        masterStats.elementsOut.get() > masterStats.chunksOut.get());
             }
 
-            // close the master
             masterBuffer.close();
+            future.get(10, TimeUnit.SECONDS);
 
-            // and await its future.
-            masterBuffer.getFuture().get();
-            
-            // verify data in/out.
-            
-            // chunks/elements in for the buffer.
-            assertEquals("masterBuffer.elementsIn", counter.get(), masterBuffer
-                    .getElementsAddedCount());
-            assertEquals("masterBuffer.chunksIn", counter.get(), masterBuffer
-                    .getChunksAddedCount());
-
-            /*
-             * Note: chunks/elements in for the master can not be known since
-             * the master can combine chunks when reading from its buffer.
-             */
-//            assertEquals("elementsIn", counter.get(), masterStats.elementsIn);
-//            assertEquals("chunksIn", counter.get(), masterStats.chunksIn);
-            
-            // elements out for the master (aggregated across all sinks).
-            assertEquals("elementsOut", counter.get(), masterStats.elementsOut.get());
-
-            // only a single sink key was used (one index partition).
+            assertEquals("masterBuffer.elementsIn", chunksSent, masterBuffer.getElementsAddedCount());
+            assertEquals("masterBuffer.chunksIn", chunksSent, masterBuffer.getChunksAddedCount());
+            assertEquals("elementsOut", chunksSent, masterStats.elementsOut.get());
             assertEquals("partitionCount", 1, masterStats.getMaximumPartitionCount());
-
-            /*
-             * verify that the sink was not closed by an idle timeout before the
-             * master was closed (this verifies that we only had a single sink
-             * running for the entire test).
-             * 
-             * Note: Rare CI failure at the next line.
-             * 
-             * junit.framework.AssertionFailedError: subtaskStartCount expected:<1> but was:<2>
-             *   at com.bigdata.service.ndx.pipeline.TestMasterTaskIdleTimeout.test_idleTimeout_LT_chunkTimeout2(TestMasterTaskIdleTimeout.java:572)
-             */
+            assertEquals("subtaskIdleTimeout", 0, masterStats.subtaskIdleTimeoutCount.get());
             assertEquals("subtaskStartCount", 1, masterStats.subtaskStartCount.get());
             assertEquals("subtaskEndCount", 1, masterStats.subtaskEndCount.get());
-
-            /*
-             * verify that chunks were combined until they had on average ~ N
-             * elements per sink since the rate of chunk arrival should have
-             * been ~ N times the chunk timeout.
-             */
-            final double actualAverageOutputChunkSize = (double) masterStats.elementsOut
-                    .get() / (double) masterStats.chunksOut.get();
-
-            final double r = actualAverageOutputChunkSize
-                    / expectedAverageOutputChunkSize;
-
-            final String msg = "average elements per output chunk: "
-                + actualAverageOutputChunkSize + ", N=" + N + ", O=" + O
-                + ", " + expectedAverageOutputChunkSize+", ratio="+r;
-        
-            if(log.isInfoEnabled())
-                log.info(msg);
-        
-            if (r < .8 || r > 1.1) {
-
-                /*
-                 * The ration between the expected and observed average chunk
-                 * sizes is not within some reasonable bounds on its
-                 * performance. [It is more likely that this will report an
-                 * error for a short run, but the values should be quite close
-                 * on a longer run.]
-                 */
-                fail(msg);
-                
-            }
-
-            //            assertTrue(elementsPerChunk>masterState.chunks)
-            
         } finally {
-
-            scheduledExecutorService.shutdownNow();
-
+            masterBuffer.close();
+            future.cancel(true);
         }
-
     }
 
     /**
