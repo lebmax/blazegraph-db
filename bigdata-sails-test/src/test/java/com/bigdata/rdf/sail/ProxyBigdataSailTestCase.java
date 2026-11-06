@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Properties;
+import java.util.UUID;
 
 import junit.extensions.proxy.IProxyTest;
 import junit.framework.Test;
@@ -158,10 +159,12 @@ public abstract class ProxyBigdataSailTestCase
      */
 
     private int startupActiveThreads = 0;
+    private String testNamespace;
     
     @Override
     protected void setUp() throws Exception {
         
+        testNamespace = null;
         startupActiveThreads = Thread.currentThread().getThreadGroup().activeCount();
 
         getOurDelegate().setUp(this);        
@@ -228,7 +231,7 @@ public abstract class ProxyBigdataSailTestCase
      */
     @Override
     public Properties getProperties() {
-        return getOurDelegate().getProperties();
+        return withTestNamespace(getOurDelegate().getProperties());
     }
 
     /**
@@ -236,7 +239,7 @@ public abstract class ProxyBigdataSailTestCase
      * by the delegate.
      */
     protected BigdataSail getSail() {
-        return getOurDelegate().getSail(getProperties());
+        return getSail(getProperties());
     }
     
     /**
@@ -244,9 +247,23 @@ public abstract class ProxyBigdataSailTestCase
      * (typically overriding one or more properties).
      */
     protected BigdataSail getSail(Properties properties) {
-        return getOurDelegate().getSail(properties);
+        return getOurDelegate().getSail(withTestNamespace(properties));
     }
     
+    private Properties withTestNamespace(final Properties properties) {
+        if (properties.getProperty(BigdataSail.Options.NAMESPACE) != null) {
+            return properties;
+        }
+
+        // Value factories are shared by namespace even across independent journals.
+        if (testNamespace == null) {
+            testNamespace = BigdataSail.Options.DEFAULT_NAMESPACE + "-" + UUID.randomUUID();
+        }
+        final Properties isolated = (Properties) properties.clone();
+        isolated.setProperty(BigdataSail.Options.NAMESPACE, testNamespace);
+        return isolated;
+    }
+
     /**
      * Close and then re-open the SAIL.
      */

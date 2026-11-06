@@ -39,6 +39,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -47,6 +48,7 @@ import junit.framework.TestCase2;
 import org.openrdf.model.Statement;
 import org.openrdf.model.URI;
 import org.openrdf.model.Value;
+import org.openrdf.model.ValueFactory;
 import org.openrdf.model.impl.LiteralImpl;
 import org.openrdf.model.impl.URIImpl;
 import org.openrdf.sail.SailConnection;
@@ -80,6 +82,27 @@ public class TestBootstrapBigdataSail extends TestCase2 {
      */
     public TestBootstrapBigdataSail(final String arg0) {
         super(arg0);
+    }
+
+    public void testIndependentFixturesCanUseDifferentVocabularies() throws Throwable {
+        final TestBigdataSailWithQuads delegate = new TestBigdataSailWithQuads();
+        final AtomicReference<ValueFactory> firstFactory = new AtomicReference<ValueFactory>();
+        final TestLexJoinOps withoutVocabulary = new TestLexJoinOps("testCastAndDatatype") {
+            @Override
+            protected BigdataSail getSail() {
+                final BigdataSail sail = super.getSail();
+                firstFactory.set(sail.getValueFactory());
+                return sail;
+            }
+        };
+        withoutVocabulary.setDelegate(delegate);
+        withoutVocabulary.runBare();
+
+        // Keep the first factory reachable while the next fixture initializes.
+        final TestMaterialization withVocabulary = new TestMaterialization("testRegex");
+        withVocabulary.setDelegate(delegate);
+        withVocabulary.runBare();
+        assertNotNull(firstFactory.get());
     }
 
     /**

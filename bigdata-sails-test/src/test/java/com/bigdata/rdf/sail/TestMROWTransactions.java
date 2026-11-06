@@ -632,7 +632,9 @@ abstract public class TestMROWTransactions extends ProxyBigdataSailTestCase {
              * indices. This is where the problem is reported for ticket #855.
              */
             final String name = isQuads ? "SPOC" : "SPO";
-            props.setProperty("com.bigdata.namespace.kb.spo." + name
+            final String namespace = props.getProperty(BigdataSail.Options.NAMESPACE,
+                    BigdataSail.Options.DEFAULT_NAMESPACE);
+            props.setProperty("com.bigdata.namespace." + namespace + ".spo." + name
                     + ".com.bigdata.btree.BTree.className",
                     MyBTree.class.getName());
         }
