@@ -200,8 +200,9 @@ public class TestMemStore extends AbstractJournalTestCase {
 		public void testVerifyCommitRecordIndex() {
             final Properties properties = new Properties(getProperties());
 
-            properties.setProperty(
-                    AbstractTransactionService.Options.MIN_RELEASE_AGE, "400");
+            // Retain every commit record until the test removes it explicitly.
+            properties.setProperty(AbstractTransactionService.Options.MIN_RELEASE_AGE,
+                    AbstractTransactionService.Options.MIN_RELEASE_AGE_NEVER);
 
 			final Journal store = getJournal(properties);
             try {
@@ -222,16 +223,12 @@ public class TestMemStore extends AbstractJournalTestCase {
 		           	store.commit();
 		           	
 	        	}
-	        	
-	        	// Age the history (of the deletes!)
-	        	Thread.currentThread().sleep(400);
-	        	
+
 	        	verifyCommitIndex(store, 20);
 	        	
 	        	store.close();
 	        	
-           } catch (InterruptedException e) {
-			} finally {
+            } finally {
             	store.destroy();
             }
 		}
@@ -258,12 +255,13 @@ public class TestMemStore extends AbstractJournalTestCase {
 	        final byte[] zeroKey = metadata.getTupleSerializer()
 	                .serializeKey(0L);
 
-	        final byte[] releaseKey = metadata.getTupleSerializer()
-            .serializeKey(System.currentTimeMillis());
+	        // The upper bound is exclusive.
+	        final byte[] toKey = metadata.getTupleSerializer()
+	                .serializeKey(jrnl.getLastCommitTime() + 1);
 
-	        final int removed = jrnl.removeCommitRecordEntries(zeroKey, releaseKey);
+	        final int removed = jrnl.removeCommitRecordEntries(zeroKey, toKey);
 	      
-	        assertTrue(removed == expectedRecords);
+	        assertEquals("Removed commit records", expectedRecords, removed);
 
 	        jrnl.commit();
 		}

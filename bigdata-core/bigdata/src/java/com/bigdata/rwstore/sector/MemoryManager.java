@@ -1539,8 +1539,11 @@ public class MemoryManager implements IMemoryManager, ISectorManager {
 		 * The timestamp for which we may release commit state.
 		 */
 		final long latestReleasableTime = transactionService.getReleaseTime();
-		
-        return freeDeferrals(journal, m_lastDeferredReleaseTime  + 1,
+		if (m_lastDeferredReleaseTime >= latestReleasableTime) {
+			return 0;
+		}
+
+        return freeDeferrals(journal, m_lastDeferredReleaseTime + 1,
                 latestReleasableTime);
 	}
 
