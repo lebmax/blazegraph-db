@@ -24,7 +24,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 package com.bigdata.rdf.internal.gis;
 
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.text.ParseException;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,34 +60,10 @@ public class CoordinateDD implements ICoordinate {
     private static final double MIN_EAST_WEST = -180d;
 
     /**
-     * Format for decimal degrees with (at least) five digits of precision.
+     * Decimal degrees with five fractional digits, using the syntax of parse().
      */
-    private static final DecimalFormat FMT_DECIMAL_DEGREES;
-    static {
-        FMT_DECIMAL_DEGREES = new DecimalFormat();
-        // DecimalFormatSymbols symbols = new DecimalFormatSymbols(
-        // Locale.ENGLISH);
-        //
-        // // override so that the grouping character looks like a decimal
-        // // point.
-        // symbols.setGroupingSeparator('.');
-        //
-        // // override so that the decimal point will not be confused with the
-        // // grouping character during parsing.
-        // symbols.setDecimalSeparator(':');
-        // // override the symbols on our format.
-        // FMT_DECIMAL_DEGREES.setDecimalFormatSymbols(symbols);
-        // // change the grouping size to 5 digits to get our apparent 5 digits
-        // // after the decimal.
-        // FMT_DECIMAL_DEGREES.setGroupingSize(5);
-        // // make sure that grouping is turned on.
-        // FMT_DECIMAL_DEGREES.setGroupingUsed(true);
-        // explicit positive prefix.
-        FMT_DECIMAL_DEGREES.setPositivePrefix("+");
-        // explicit negative prefix.
-        FMT_DECIMAL_DEGREES.setNegativePrefix("-");
-        FMT_DECIMAL_DEGREES.setMinimumFractionDigits(5);
-    }
+    private static final DecimalFormat FMT_DECIMAL_DEGREES = new DecimalFormat(
+            "+0.00000;-0.00000", DecimalFormatSymbols.getInstance(Locale.ROOT));
 
     /**
      * Constructor for a coordinate using decimal degrees.

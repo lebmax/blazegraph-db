@@ -29,9 +29,11 @@ package com.bigdata.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -49,6 +51,8 @@ import com.bigdata.util.CSVReader.Header;
  * @version $Id$
  */
 public class TestCSVReader extends TestCase2 {
+
+    private static final int SALARY_COLUMN = 4;
 
     /**
      * 
@@ -114,6 +118,7 @@ public class TestCSVReader extends TestCase2 {
         assertEquals(1,r.lineNo());
 
         assertEquals(headers, r.headers);
+        r.setHeader(SALARY_COLUMN, usCurrencyHeader(r.headers[SALARY_COLUMN].getName()));
         
         /*
          * 1st row of data.
@@ -170,7 +175,13 @@ public class TestCSVReader extends TestCase2 {
         };
         
         CSVReader r = new CSVReader(
-                getTestInputStream("com/bigdata/util/test-no-headers.csv"), "UTF-8");
+                getTestInputStream("com/bigdata/util/test-no-headers.csv"), "UTF-8") {
+            @Override
+            protected void setDefaultHeaders(final int ncols) {
+                super.setDefaultHeaders(ncols);
+                setHeader(SALARY_COLUMN, usCurrencyHeader(this.headers[SALARY_COLUMN].getName()));
+            }
+        };
 
         /*
          * 1st row of data.
@@ -205,6 +216,29 @@ public class TestCSVReader extends TestCase2 {
          */
         assertFalse(r.hasNext());
         
+    }
+
+    public void test_parse_local_currency() {
+        final NumberFormat currency = NumberFormat.getCurrencyInstance();
+        currency.setMinimumFractionDigits(2);
+        final double amount = 12.02;
+        assertEquals(Double.valueOf(amount),
+                new Header("Salary").parseValue(currency.format(amount)));
+    }
+
+    // The CSV files encode salaries in US currency regardless of the JVM locale.
+    private static Header usCurrencyHeader(final String name) {
+        final NumberFormat currency = NumberFormat.getCurrencyInstance(Locale.US);
+        return new Header(name) {
+            @Override
+            public Object parseValue(final String text) {
+                try {
+                    return currency.parse(text);
+                } catch (ParseException e) {
+                    throw new IllegalArgumentException("Invalid US currency: " + text, e);
+                }
+            }
+        };
     }
 
     protected void assertEquals(Header[] expected, Header[] actual) {

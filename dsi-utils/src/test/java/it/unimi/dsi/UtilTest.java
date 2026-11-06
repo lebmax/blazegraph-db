@@ -31,15 +31,15 @@ public class UtilTest extends TestCase {
 		assertEquals( "1", Util.formatSize( 1 ) );
 		assertEquals( "2", Util.formatSize( 2 ) );
 		assertEquals( "128", Util.formatSize( 128 ) );
-		assertEquals( "1.00K", Util.formatSize( 1000 ) );
-		assertEquals( "2.00K", Util.formatSize( 2000 ) );
-		assertEquals( "2.50K", Util.formatSize( 2500 ) );
-		assertEquals( "1.00M", Util.formatSize( 1000 * 1000 ) );
-		assertEquals( "2.00M", Util.formatSize( 2 * 1000 * 1000 ) );
-		assertEquals( "1.00G", Util.formatSize( 1000 * 1000 * 1000 ) );
-		assertEquals( "2.00G", Util.formatSize( 2L * 1000 * 1000 * 1000 ) );
-		assertEquals( "1.00T", Util.formatSize( 1000L * 1000 * 1000 * 1000 ) );
-		assertEquals( "2.00T", Util.formatSize( 2L * 1000 * 1000 * 1000 * 1000 ) );
+		assertEquals( String.format( "%.2fK", 1.0 ), Util.formatSize( 1000 ) );
+		assertEquals( String.format( "%.2fK", 2.0 ), Util.formatSize( 2000 ) );
+		assertEquals( String.format( "%.2fK", 2.5 ), Util.formatSize( 2500 ) );
+		assertEquals( String.format( "%.2fM", 1.0 ), Util.formatSize( 1000 * 1000 ) );
+		assertEquals( String.format( "%.2fM", 2.0 ), Util.formatSize( 2 * 1000 * 1000 ) );
+		assertEquals( String.format( "%.2fG", 1.0 ), Util.formatSize( 1000 * 1000 * 1000 ) );
+		assertEquals( String.format( "%.2fG", 2.0 ), Util.formatSize( 2L * 1000 * 1000 * 1000 ) );
+		assertEquals( String.format( "%.2fT", 1.0 ), Util.formatSize( 1000L * 1000 * 1000 * 1000 ) );
+		assertEquals( String.format( "%.2fT", 2.0 ), Util.formatSize( 2L * 1000 * 1000 * 1000 * 1000 ) );
 	}
 	
 

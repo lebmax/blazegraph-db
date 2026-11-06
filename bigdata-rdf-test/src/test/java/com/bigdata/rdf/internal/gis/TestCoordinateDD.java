@@ -52,11 +52,12 @@ public class TestCoordinateDD extends AbstractCoordinateTestCase {
     /**
      * Verify basic constructor and formatter.
      */
-    public void test_ctor() {
+    public void test_ctor() throws ParseException {
         CoordinateDD c = new CoordinateDD(+32.30642, -122.61458);
         assertEquals(c.northSouth, +32.30642);
         assertEquals(c.eastWest, -122.61458);
         assertEquals("+32.30642,-122.61458", c.toString());
+        assertEquals(c, CoordinateDD.parse(c.toString()));
     }
 
     /**
