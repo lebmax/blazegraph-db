@@ -26,10 +26,10 @@ package com.bigdata.ha.halog;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.security.DigestException;
 import java.security.MessageDigest;
@@ -291,29 +291,6 @@ public class HALogReader implements IHALogReader {
 
 	}
 
-	/**
-	 * To stream from the Channel, we can use the associated RandomAccessFile
-	 * since the FilePointer for one is the same as the other.
-	 */
-	private static class RAFInputStream extends InputStream {
-		final RandomAccessFile m_raf;
-		
-		RAFInputStream(final RandomAccessFile raf) {
-			m_raf = raf;
-		}
-		
-		@Override
-		public int read() throws IOException {
-			return m_raf.read();
-		}
-
-		@Override
-		public int read(byte[] b, int off, int len) throws IOException {
-			return m_raf.read(b, off, len);
-		}
-
-	}
-
     @Override
 	public IHAWriteMessage processNextBuffer(final ByteBuffer clientBuffer)
 			throws IOException {
@@ -328,8 +305,10 @@ public class HALogReader implements IHALogReader {
 
 		final FileChannel channel = raf.getChannel();
 		
+		// On Windows, positioned writes temporarily move the file pointer.
+		// Read through the channel so both operations use its position lock.
 		final ObjectInputStream objinstr = new ObjectInputStream(
-				new RAFInputStream(raf));
+				Channels.newInputStream(channel));
 
 		final IHAWriteMessage msg;
 		try {
