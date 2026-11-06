@@ -15,10 +15,16 @@
 */
 package com.bigdata.ganglia;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Enumeration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -162,7 +168,7 @@ public class GangliaListener implements Callable<Void>, IGangliaDefaults {
 			datagramSocket = new MulticastSocket(port);
 			
 			// Join the group.
-			datagramSocket.joinGroup(group);
+			joinGroup(datagramSocket);
 
 			// Start the executor.
 			service = Executors
@@ -236,6 +242,50 @@ public class GangliaListener implements Callable<Void>, IGangliaDefaults {
             
         }
 
+    }
+
+    private void joinGroup(final MulticastSocket socket) throws IOException {
+        try {
+            socket.joinGroup(group);
+        } catch (SocketException defaultFailure) {
+            if (!(group instanceof Inet4Address) || !group.isMulticastAddress()) {
+                throw defaultFailure;
+            }
+
+            final Enumeration<NetworkInterface> interfaces;
+            try {
+                interfaces = NetworkInterface.getNetworkInterfaces();
+            } catch (SocketException enumerationFailure) {
+                defaultFailure.addSuppressed(enumerationFailure);
+                throw defaultFailure;
+            }
+
+            // An implicit IPv4 join can fail even when an explicit join works.
+            final InetSocketAddress address = new InetSocketAddress(group, port);
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                final NetworkInterface networkInterface = interfaces.nextElement();
+                try {
+                    if (!networkInterface.isUp() || networkInterface.isLoopback()
+                            || !networkInterface.supportsMulticast()) {
+                        continue;
+                    }
+                    final Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                    while (addresses.hasMoreElements()) {
+                        if (addresses.nextElement() instanceof Inet4Address) {
+                            socket.joinGroup(address, networkInterface);
+                            log.warn("Joined " + address + " on " + networkInterface.getName()
+                                    + " after the default multicast join failed", defaultFailure);
+                            return;
+                        }
+                    }
+                } catch (IOException interfaceFailure) {
+                    defaultFailure.addSuppressed(new IOException(
+                            "Multicast join on " + networkInterface.getName(), interfaceFailure));
+                }
+            }
+
+            throw defaultFailure;
+        }
     }
 
     /**
