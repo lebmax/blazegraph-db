@@ -102,9 +102,10 @@ public class JVMPipelinedHashJoinUtility extends JVMHashJoinUtility implements P
    final List<IBindingSet> incomingBindingsBuffer = new LinkedList<IBindingSet>();
  
    /**
-    * See {@link PipelinedHashIndexAndSolutionSetJoinOp#distinctProjectionsWithoutSubqueryResult}
+    * Input projections whose subquery evaluation has completed, including
+    * those with no results.
     */
-   final Set<IBindingSet> distinctProjectionsWithoutSubqueryResult = new HashSet<IBindingSet>();
+   private final Set<IBindingSet> evaluatedProjections = new HashSet<IBindingSet>();
    
    /**
     * Set to true if processing binding sets are passed in via 
@@ -200,42 +201,14 @@ public class JVMPipelinedHashJoinUtility extends JVMHashJoinUtility implements P
                    continue;
                 }
                
-                // Take a distinct projection of the join variables.
+                // Project the bindings used as input to the subquery.
                 final IBindingSet bsetDistinct = chunk[i].copy(projectInVars);
 
-                /**
-                 *  Find bucket in hash index for that distinct projection
-                 * (bucket of solutions with the same join vars from the
-                 *  subquery - basically a JOIN).
-                 */
-                final Bucket b = rightSolutions.getBucket(bsetDistinct);
-
-                if (b != null && b.contains(bsetDistinct)) {
-
-                    /**
-                     * If the hash index contains already contains the solution, this means that we evaluated
-                     * the solution in a prior run. We take the short path, which avoids subquery re-evaluation.
-                     * Note that this code path is only hit if the variables that are projected into the subquery
-                     * equal the variables that are projected out of the subquery (see discussion in next paragraph).
-                     * The approach we take in the HTree variant of the operator actually differs, see the comments
-                     * around usage of variable bSetDistinctJoins.
-                     *
-                     * To get a "perfect" reuse behavior, we would need to check whether the bucket contains a solution
-                     * that *JOINS* with the current binding. This is expensive though, because the bucket data
-                     * structure does not give us efficient support for this (we'd need to iterate over all solutions
-                     * with the same key). Given that the subquery re-evaluation does not hurt (and the chance we're
-                     * hitting this edge case is arguably low), we restrict on a b.contains() check above.
-                     */
+                // The index stores complete results, which can have more bindings than the input.
+                final Bucket bucket = rightSolutions.getBucket(bsetDistinct);
+                if (evaluatedProjections.contains(bsetDistinct)
+                        || (bucket != null && bucket.contains(bsetDistinct))) {
                     dontRequireSubqueryEvaluation.add(chunk[i]);
-
-                } else if (distinctProjectionsWithoutSubqueryResult.contains(bsetDistinct)) {
-
-                    /*
-                     * We know that the distinct projection for this binding does not not produce
-                     * any results. So we can safely take a fast path that avoids subquery evaluation.
-                     */
-                    dontRequireSubqueryEvaluation.add(chunk[i]);
-
                 } else {
                     // This is a new distinct projection. It will need to run
                     // through the subquery. We buffer the solutions in a
@@ -313,28 +286,11 @@ public class JVMPipelinedHashJoinUtility extends JVMHashJoinUtility implements P
                         // add solutions to the subquery into the hash index.
                         rightSolutions.add(solution);
 
-                        /*
-                         * we remove all mappings that generated at least one
-                         * result from distinct set (which will be further
-                         * processed later on); This is how we discover the set
-                         * of distinct projections that did not join.
-                         */
-                        distinctProjectionBuffer.remove(solution.copy(projectInVars));
-
                         nResultsFromSubqueries.increment();
                     }
 
                 }
 
-                /**
-                 * register the distinct keys for which the subquery did not
-                 * yield any result as "keys without match" at the index; this
-                 * is an improvement (though not necessarily required) in order
-                 * to avoid unnecessary re-computation of the subqueries for
-                 * these keys
-                 */
-                distinctProjectionsWithoutSubqueryResult.addAll(distinctProjectionBuffer);
-                
             } finally {
 
                 // finished with the iterator
@@ -344,6 +300,7 @@ public class JVMPipelinedHashJoinUtility extends JVMHashJoinUtility implements P
 
             // wait for the subquery to halt / test for errors.
             runningSubquery.get();
+            evaluatedProjections.addAll(distinctProjectionBuffer);
 
         } catch (Throwable t) {
 
@@ -601,7 +558,7 @@ public class JVMPipelinedHashJoinUtility extends JVMHashJoinUtility implements P
         if (constraints != null)
             sb.append(",constraints=" + Arrays.toString(constraints));
         sb.append(",size=" + getRightSolutionCount());
-        sb.append(", distinctProjectionsWithoutSubqueryResult=" + distinctProjectionsWithoutSubqueryResult.size());
+        sb.append(", evaluatedProjections=" + evaluatedProjections.size());
         sb.append(", distinctBindingSets (seen/released)=" + nDistinctBindingSets + "/" + nDistinctBindingSetsReleased);
         sb.append(", subqueriesIssued=" + nSubqueriesIssued);
         sb.append(", resultsFromSubqueries=" + nResultsFromSubqueries);

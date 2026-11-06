@@ -1,6 +1,10 @@
+PREFIX hint: <http://www.bigdata.com/queryHints#>
+
 SELECT ?s WHERE { 
   
-  ?s <http://p1> ?o1 
+  ?s <http://p1> ?o1 .
+  # Feed the OPTIONAL in chunks small enough to span multiple join batches.
+  hint:Prior hint:chunkSize 5 .
   OPTIONAL {
     ?s <http://p2> ?o2 . 
     ?s <http://p2> ?o3 . 
