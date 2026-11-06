@@ -32,6 +32,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPInputStream;
@@ -175,90 +177,41 @@ public class SnapshotTask implements Callable<ISnapshotResult> {
                SNAPSHOT_TMP_PREFIX,
                SNAPSHOT_TMP_SUFFIX, parentDir);
 
-         OutputStream osx = null;
-         DataOutputStream os = null;
-         boolean success = false;
+         boolean published = false;
          try {
+            try (FileOutputStream fileOut = new FileOutputStream(tmp);
+                  DataOutputStream out = new DataOutputStream(snapshotFactory.getCompress()
+                        ? new GZIPOutputStream(fileOut, GZIP_BUFFER)
+                        : fileOut)) {
 
-            osx = new FileOutputStream(tmp);
+               ((IHABufferStrategy) journal.getBufferStrategy()).writeOnStream(out,
+                     coreData, null/* quorum */, Quorum.NO_QUORUM);
 
-            if (snapshotFactory.getCompress())
-               osx = new GZIPOutputStream(osx, GZIP_BUFFER);
+            }
 
-            os = new DataOutputStream(osx);
+            // Publish only after the output stream (including gzip) has closed.
+            Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            published = true;
 
-            // write out the file data.
-            ((IHABufferStrategy) journal.getBufferStrategy()).writeOnStream(os,
-                  coreData, null/* quorum */, Quorum.NO_QUORUM);
+            if (Journal.log.isInfoEnabled())
+               Journal.log.info("Captured snapshot: " + file
+                     + ", commitCounter=" + rbv.get().getCommitCounter()
+                     + ", length=" + file.length());
 
-            // flush the output stream.
-            os.flush();
-
-            // done.
-            success = true;
          } catch (Throwable t) {
-            /*
-             * Log @ ERROR and launder throwable.
-             */
             Journal.log.error(t, t);
             if (t instanceof Exception)
                throw (Exception) t;
             else
                throw new RuntimeException(t);
          } finally {
-
-            if (os != null) {
+            if (!published) {
                try {
-                  os.close();
-               } finally {
-                  // ignore.
-                  os = null;
-                  osx = null;
-               }
-            } else if (osx != null) {
-               try {
-                  osx.close();
-               } finally {// ignore
-                  osx = null;
+                  Files.deleteIfExists(tmp.toPath());
+               } catch (IOException | SecurityException e) {
+                  Journal.log.warn("Could not delete temporary file: " + tmp, e);
                }
             }
-
-            /*
-             * Either rename the temporary file onto the target filename or
-             * delete the tempoary file. The snapshot is not considered to be
-             * valid until it is found under the appropriate name.
-             */
-            if (success) {
-
-               // if (!journal.getQuorum().getClient().isJoinedMember(token)) {
-               // // Verify before putting down the root blocks.
-               // throw new QuorumException(
-               // "Snapshot aborted: service not joined with met quorum.");
-               // }
-
-               if (!tmp.renameTo(file)) {
-
-                  Journal.log.error("Could not rename " + tmp + " as " + file);
-
-               } else {
-
-                  if (Journal.log.isInfoEnabled())
-                     Journal.log.info("Captured snapshot: " + file
-                           + ", commitCounter=" + rbv.get().getCommitCounter()
-                           + ", length=" + file.length());
-
-               }
-
-            } else {
-
-               if (!tmp.delete()) {
-
-                  Journal.log.warn("Could not delete temporary file: " + tmp);
-
-               }
-
-            }
-
          }
 
          // Done.

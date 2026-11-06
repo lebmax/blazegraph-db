@@ -27,6 +27,7 @@ package com.bigdata.rdf.sail.webapp;
 import java.io.File;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 
@@ -117,6 +118,7 @@ public class TestBackupServlet<S extends IIndexManager> extends
 
 		//The size of the uncompressed file
 		long uncomp_size = randomFile.length();
+		assertTrue("The uncompressed backup is empty", uncomp_size > 0L);
 		
 		assertTrue(randomFile.exists());
 		
@@ -128,6 +130,7 @@ public class TestBackupServlet<S extends IIndexManager> extends
 		mgr.onlineBackup(fileStr, true, true);
 
 		//Check if compressed
+		assertTrue("The compressed backup is empty", randomFile.length() > 0L);
 		assertTrue(uncomp_size > randomFile.length());
 
 		assertTrue(randomFile.exists());
@@ -137,20 +140,18 @@ public class TestBackupServlet<S extends IIndexManager> extends
 
 		assertTrue(!randomFile.exists());
 		
-		//Test with blocking
+		//Test without blocking
 		mgr.onlineBackup(fileStr, false, false);
 		
-		final int maxSleep = 100;
-		int i = 0;
+		final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
 		
 		//Wait for the executor to complete.
 		//Make sure we don't hit an infinite loop.
-		while(!randomFile.exists() && i < maxSleep) {
-			Thread.sleep(2);
-			i++;
+		while (randomFile.length() == 0L && System.nanoTime() < deadline) {
+			Thread.sleep(10);
 		}
 
-		assertTrue(randomFile.exists());
+		assertTrue("The asynchronous backup is empty", randomFile.length() > 0L);
 		
 		randomFile.delete();
 		
