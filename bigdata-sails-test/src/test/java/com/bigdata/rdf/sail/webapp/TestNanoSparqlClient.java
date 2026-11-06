@@ -26,6 +26,8 @@ package com.bigdata.rdf.sail.webapp;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import junit.framework.Test;
 
@@ -34,6 +36,8 @@ import org.openrdf.model.Literal;
 import org.openrdf.model.Resource;
 import org.openrdf.model.Statement;
 import org.openrdf.model.URI;
+import org.openrdf.model.Value;
+import org.openrdf.model.ValueFactory;
 import org.openrdf.model.impl.LinkedHashModel;
 import org.openrdf.model.impl.StatementImpl;
 import org.openrdf.model.impl.URIImpl;
@@ -54,6 +58,7 @@ import com.bigdata.rdf.sail.webapp.client.IPreparedBooleanQuery;
 import com.bigdata.rdf.sail.webapp.client.IPreparedGraphQuery;
 import com.bigdata.rdf.sail.webapp.client.IPreparedTupleQuery;
 import com.bigdata.rdf.sail.webapp.client.IRemoteRepository.TupleQuery;
+import com.bigdata.rdf.sail.webapp.client.RemoteRepository;
 import com.bigdata.rdf.sail.webapp.client.RemoteRepository.AddOp;
 import com.bigdata.rdf.sail.webapp.client.RemoteRepository.RemoveOp;
 import com.bigdata.rdf.store.BD;
@@ -1072,26 +1077,45 @@ public class TestNanoSparqlClient<S extends IIndexManager> extends
 //
     public void testServiceNodeBindings() throws Exception {
         final BigdataSailRemoteRepository repo = m_repo.getBigdataSailRemoteRepository();
-        final BigdataSailRemoteRepositoryConnection cxn = 
-            (BigdataSailRemoteRepositoryConnection) repo.getConnection();
-        
+        final ValueFactory vf = repo.getValueFactory();
+        final URI language = vf.createURI("urn:blazegraph:test:language");
+        final Literal english = vf.createLiteral("Test language", "en");
+        final Literal french = vf.createLiteral("Langue de test", "fr");
+
+        // Use a separate namespace so SERVICE must fetch the labels over HTTP.
+        final String serviceNamespace = namespace + "_service";
+        m_mgr.createRepository(serviceNamespace, getTestMode().getProperties());
         try {
-          String queryStr = "select * where {SERVICE <http://DBpedia.org/sparql> { <http://dbpedia.org/resource/Tonga_(Nyasa)_language> rdfs:label ?langLabel. }}";
-//                String queryStr = "SELECT * WHERE { BIND (<http://dbpedia.org/resource/Tonga_(Nyasa)_language> AS ?ref) . SERVICE <http://DBpedia.org/sparql> { ?ref rdfs:label ?langLabel. } }";
-            final org.openrdf.query.TupleQuery tq = cxn.prepareTupleQuery(QueryLanguage.SPARQL, queryStr);
-            final TupleQueryResult tqr = tq.evaluate();
+            final RemoteRepository serviceRepo = m_mgr.getRepositoryForNamespace(serviceNamespace);
+            final Graph labels = new LinkedHashModel();
+            labels.add(language, RDFS.LABEL, english);
+            labels.add(language, RDFS.LABEL, french);
+            serviceRepo.add(new AddOp(labels));
+
+            final BigdataSailRemoteRepositoryConnection cxn =
+                    (BigdataSailRemoteRepositoryConnection) repo.getConnection();
             try {
-                int cnt = 0;
-                while (tqr.hasNext()) {
-                    tqr.next();
-                    cnt++;
+                final String query = "SELECT ?langLabel WHERE { SERVICE <"
+                        + serviceRepo.getSparqlEndPoint() + "> { <" + language.stringValue()
+                        + "> <" + RDFS.LABEL.stringValue() + "> ?langLabel . } }";
+                final TupleQueryResult result = cxn.prepareTupleQuery(QueryLanguage.SPARQL, query).evaluate();
+                try {
+                    final Set<Value> expected = new HashSet<Value>();
+                    expected.add(english);
+                    expected.add(french);
+                    while (result.hasNext()) {
+                        final Value label = result.next().getValue("langLabel");
+                        assertTrue("Unexpected or duplicate label: " + label, expected.remove(label));
+                    }
+                    assertTrue("Missing labels: " + expected, expected.isEmpty());
+                } finally {
+                    result.close();
                 }
-                assertEquals(cnt, 2);
             } finally {
-                tqr.close();
+                cxn.close();
             }
         } finally {
-            cxn.close();
+            m_mgr.deleteRepository(serviceNamespace);
         }
     }
 }
