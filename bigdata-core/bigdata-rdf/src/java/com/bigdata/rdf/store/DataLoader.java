@@ -29,6 +29,7 @@ package com.bigdata.rdf.store;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -1390,7 +1391,7 @@ public class DataLoader {
                
             } finally {
 
-            	// Note: Must close() before renameTo().
+                // Also close the reader if setup fails before parsing.
                 reader.close();
 
             }
@@ -1470,8 +1471,8 @@ public class DataLoader {
 	}
 
    	/**
-	 * Loads data from the <i>source</i> (core method). The caller is
-	 * responsible for closing the <i>source</i> if there is an error.
+	 * Loads data from the <i>source</i> (core method). Sources opened for
+	 * files are closed after parsing. Other sources are owned by the caller.
 	 * 
 	 * @param totals
 	 *            Used to report out the total {@link LoadStats}.
@@ -1480,6 +1481,8 @@ public class DataLoader {
 	 * @param label
 	 *            A label used to report error messages (optional, defaults to
 	 *            baseURL if given and otherwise source.toString()).
+	 * @param fileIfSourceIsFile
+	 *            The file owned by this load, or null for a caller-owned source.
 	 * @param baseURI
 	 *            The baseURI (optional, when not specified the name of the each
 	 *            file load is converted to a URL and used as the baseURI for
@@ -1590,16 +1593,19 @@ public class DataLoader {
 			boolean ok = false;
 			try {
 				
-				if (source instanceof Reader) {
+				// Release the file handle before either durable-queue rename.
+				try (final Closeable ownedSource = fileIfSourceIsFile == null ? null : (Closeable) source) {
+					if (source instanceof Reader) {
 
-					loader.loadRdf((Reader) source, baseURI, rdfFormat, defaultGraph, parserOptions);
+						loader.loadRdf((Reader) source, baseURI, rdfFormat, defaultGraph, parserOptions);
 
-				} else if (source instanceof InputStream) {
+					} else if (source instanceof InputStream) {
 
-					loader.loadRdf((InputStream) source, baseURI, rdfFormat, defaultGraph, parserOptions);
+						loader.loadRdf((InputStream) source, baseURI, rdfFormat, defaultGraph, parserOptions);
 
-				} else
-					throw new AssertionError();
+					} else
+						throw new AssertionError();
+				}
 
 				ok = true;
 
@@ -1610,8 +1616,8 @@ public class DataLoader {
 					/*
 					 * Record output in support of durable queues pattern.
 					 * 
-					 * Note: We need to defer the rename until the next
-					 * commit(). So we just make a note of the outcome here.
+					 * Failed files are renamed immediately. Successful files
+					 * are renamed after commit.
 					 */
 					
 					if (ok) {
