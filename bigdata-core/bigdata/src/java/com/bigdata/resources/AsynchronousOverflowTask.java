@@ -657,7 +657,8 @@ public class AsynchronousOverflowTask implements Callable<Object> {
 
                 final ViewMetadata vmd = p.v;
 
-                if (forceCompactingMerges && !vmd.compactView) {
+                // A compact view can still have buffered writes and delete markers.
+                if (forceCompactingMerges) {
 
                     // Force a compacting merge.
                     final FutureTask<?> ft = new FutureTask(new AtomicCallable(

@@ -374,9 +374,9 @@ public class TestSplitJoin extends AbstractEmbeddedFederationTestCase {
                     null/* vals */, BatchRemoveConstructor.RETURN_MUTATION_COUNT,
                     null/* handler */);
 
-            // data service will overflow at the next group commit.
+            // Compact delete markers so the join decision sees the reduced shard.
             dataService0
-                    .forceOverflow(false/* immediate */, false/* compactingMerge */);
+                    .forceOverflow(false/* immediate */, true/* compactingMerge */);
 
             // delete those tuples, triggering overflow.
             fed.getIndex(name, ITx.UNISOLATED).submit(0/* fromIndex */,
