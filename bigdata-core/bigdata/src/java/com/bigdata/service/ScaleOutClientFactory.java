@@ -50,8 +50,8 @@ public class ScaleOutClientFactory {
 
 		try {
 			final Class<?> c = Class.forName(provider);
-			final Constructor<?> cons = c.getConstructor();
-			final Object object = cons.newInstance(propertyFiles);
+			final Constructor<?> cons = c.getConstructor(String[].class);
+			final Object object = cons.newInstance((Object) propertyFiles);
 			final AbstractScaleOutClient proxy = (AbstractScaleOutClient) object;
 			return proxy;
 		} catch (ClassNotFoundException | NoSuchMethodException

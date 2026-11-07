@@ -63,6 +63,8 @@ public class TestAll extends TestCase {
 
         final TestSuite suite = new TestSuite("bigdata services");
 
+        suite.addTestSuite(TestScaleOutClientFactory.class);
+
         // event handling
         suite.addTestSuite(TestEventParser.class);
         suite.addTestSuite(TestEventReceiver.class);
