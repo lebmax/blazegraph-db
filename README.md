@@ -1,6 +1,10 @@
 ## Welcome to the Blazegraph Database ##
 Blazegraph™ DB is a ultra high-performance graph database supporting Blueprints and RDF/SPARQL APIs. It supports up to 50 Billion edges on a single machine. It is in production use for Fortune 500 customers such as EMC, Autodesk, and many others.  It is supporting key [Precision Medicine](http://www.syapse.com) applications and has wide-spread usage for life science applications.  It is used extensively to support Cyber analytics in commercial and government applications.  It powers the Wikimedia Foundation's [Wikidata Query Service](https://query.wikidata.org/). 
 
+### Development of this fork ###
+
+[Единый план развития](docs/plans/2026-11-07-blazegraph-development-plan.md): Java 8 → 11 → 17 → 21 → 25, сохранение всех режимов, выбор серверной платформы, исследования памяти, Native Image и Netty, затем улучшения движка с учётом опыта WDQS/QLever.
+
 ![image](http://blog.blazegraph.com/wp-content/uploads/2015/07/blazegraph_by_systap_favicon.png)
 
 Please see the release notes in [releases](bigdata/src/releases) for version changes.
