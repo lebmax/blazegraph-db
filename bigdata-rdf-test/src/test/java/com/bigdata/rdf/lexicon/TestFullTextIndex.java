@@ -779,42 +779,14 @@ public class TestFullTextIndex extends AbstractTripleStoreTestCase {
 
             }
 
-            // verify that full text index is  broken.
+            // Inspect the backing index directly: searches can retain cached hits.
             {
-
-                assertNotNull(store.getLexiconRelation().getSearchEngine());
-                
-                assertExpectedHits(store, "abc", null/* languageCode */,
-                        new BigdataValue[] { //
-                        });
-
-                assertExpectedHits(store, "tag", "en", new BigdataValue[] {//
-                        });
-
-                assertExpectedHits(store, "tag", "de", new BigdataValue[] {//
-                        });
-
-                assertExpectedHits(store, "GOOD DAY", "en", //
-                        .0f, // minCosine
-                        new BigdataValue[] {//
-                        });
-
-                assertExpectedHits(store, "GOOD DAY", "en", //
-                        .5f, // minCosine
-                        new BigdataValue[] {//
-                        });
-
-                assertExpectedHits(store, "day", "en", //
-                        .0f, // minCosine
-                        new BigdataValue[] {
-                		});
-                
-                // BLOB
-                assertExpectedHits(store, largeLiteral.getLabel(), null/*lang*/, //
-                        .0f, // minCosine
-                        new BigdataValue[] {
-                        });
-                
+                final String name = store.getLexiconRelation().getNamespace()
+                        + "." + BigdataValueCentricFullTextIndex.NAME_SEARCH;
+                final IIndex btree = store.getIndexManager().getIndex(name,
+                        store.getTimestamp());
+                assertEquals("The damaged full text index should be empty",
+                        0L, btree.rangeCountExact(null, null));
             }
 
             // rebuild the full text index.
@@ -825,6 +797,9 @@ public class TestFullTextIndex extends AbstractTripleStoreTestCase {
 	            
             	final IIndex btree = store.getIndexManager().getIndex(name, store.getTimestamp());
 	            
+                assertTrue("The rebuilt full text index should not be empty",
+                        btree.rangeCountExact(null, null) > 0L);
+
             	final ITupleIterator itr = btree.rangeIterator();
 	            
             	while (itr.hasNext()) {
