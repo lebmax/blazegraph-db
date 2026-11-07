@@ -255,6 +255,12 @@ public class RemoteSparql11QueryBuilder implements IRemoteSparqlQueryBuilder {
                 throw new RuntimeException();
             final String tmp = exprImage.substring(beginIndex, endIndex);
             sb.append("WHERE {\n");
+            if (!singleEmptyBindingSet) {
+                appendValues(sb, bindingSets);
+                // Preserve the scope of OPTIONAL, MINUS, BIND and FILTER in
+                // the original SERVICE pattern while joining incoming rows.
+                sb.append("{\n");
+            }
             if (bnodes != null) {
                 /*
                  * Impose a same-term constraint for all variables which are
@@ -279,56 +285,9 @@ public class RemoteSparql11QueryBuilder implements IRemoteSparqlQueryBuilder {
             }
             sb.append(tmp); // append SERVICE's graph pattern.
             sb.append("\n}\n");
-        }
-
-        /*
-         * VALUES clause.
-         * 
-         * Note: The VALUES clause is used to vector the SERVICE request.
-         * 
-         * VALUES (?book ?title) { (:book1 :title1) (:book2 UNDEF) }
-         */
-        if (!singleEmptyBindingSet) {
-
-            // Variables in a known stable order.
-            final LinkedHashSet<String> vars = getDistinctVars(bindingSets);
-
-            sb.append("VALUES");
-            sb.append(" (");
-
-            // Variable declarations.
-            {
-
-                for (String v : vars) {
-                    sb.append(" ?");
-                    sb.append(v);
-                }
-            }
-            
-            sb.append(")");
-
-            // Bindings.
-            {
-                sb.append(" {\n"); //
-                for (BindingSet bindingSet : bindingSets) {
-                    sb.append("(");
-                    for (String v : vars) {
-                        sb.append(" ");
-                        final Binding b = bindingSet.getBinding(v);
-                        if (b == null) {
-                            sb.append("UNDEF");
-                        } else {
-                            final Value val = b.getValue();
-                            final String ext = util.toExternal(val);
-                            sb.append(ext);
-                        }
-                    }
-                    sb.append(" )");
-                    sb.append("\n");
-                }
+            if (!singleEmptyBindingSet) {
                 sb.append("}\n");
             }
-
         }
 
         final String q = sb.toString();
@@ -337,7 +296,61 @@ public class RemoteSparql11QueryBuilder implements IRemoteSparqlQueryBuilder {
             log.info("\n" + q);
 
         return q;
-        
+
+    }
+
+    /**
+     * Put incoming bindings inside WHERE, before the SERVICE graph pattern.
+     * Some remote endpoints, including Virtuoso, return unrelated zero-length
+     * property-path matches when the same bindings use query-level VALUES.
+     */
+    private void appendValues(final StringBuilder sb, final BindingSet[] bindingSets) {
+        /*
+         * VALUES clause.
+         * 
+         * Note: The VALUES clause is used to vector the SERVICE request.
+         * 
+         * VALUES (?book ?title) { (:book1 :title1) (:book2 UNDEF) }
+         */
+        // Variables in a known stable order.
+        final LinkedHashSet<String> vars = getDistinctVars(bindingSets);
+
+        sb.append("VALUES");
+        sb.append(" (");
+
+        // Variable declarations.
+        {
+
+            for (String v : vars) {
+                sb.append(" ?");
+                sb.append(v);
+            }
+        }
+
+        sb.append(")");
+
+        // Bindings.
+        {
+            sb.append(" {\n"); //
+            for (BindingSet bindingSet : bindingSets) {
+                sb.append("(");
+                for (String v : vars) {
+                    sb.append(" ");
+                    final Binding b = bindingSet.getBinding(v);
+                    if (b == null) {
+                        sb.append("UNDEF");
+                    } else {
+                        final Value val = b.getValue();
+                        final String ext = util.toExternal(val);
+                        sb.append(ext);
+                    }
+                }
+                sb.append(" )");
+                sb.append("\n");
+            }
+            sb.append("}\n");
+        }
+
     }
 
     /**

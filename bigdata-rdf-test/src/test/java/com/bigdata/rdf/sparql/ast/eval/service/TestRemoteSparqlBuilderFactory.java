@@ -972,13 +972,11 @@ public class TestRemoteSparqlBuilderFactory extends
         
         final String actualQueryStrVersion_11 = queryBuilder.getSparqlQuery(a).replaceAll("\\s+", " ");
         
-        final String expectedSparqlVersion_11 = new String("SELECT  ?s " + //
-											        		"WHERE {" + //
-											        		" ?s ?p ?o " + // 
-											        		"} " + //
-											        		"VALUES ( ?p ?o) { " + //
-											        		"( <p:p1> \"\\\"lit1\\\"\" ) " + //
-											        		"} ").replaceAll("\\s+", " ");
+        final String expectedSparqlVersion_11 = new String("SELECT ?s "
+                + "WHERE { "
+                + "VALUES ( ?p ?o) { "
+                + "( <p:p1> \"\\\"lit1\\\"\" ) "
+                + "} { ?s ?p ?o } } ").replaceAll("\\s+", " ");
         
         assertEquals(expectedSparqlVersion_11, actualQueryStrVersion_11);
     

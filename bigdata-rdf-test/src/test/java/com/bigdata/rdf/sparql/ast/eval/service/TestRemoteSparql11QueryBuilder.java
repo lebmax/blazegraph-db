@@ -41,8 +41,13 @@ import org.openrdf.model.impl.BNodeImpl;
 import org.openrdf.model.impl.LiteralImpl;
 import org.openrdf.model.vocabulary.DC;
 import org.openrdf.query.BindingSet;
+import org.openrdf.query.QueryLanguage;
+import org.openrdf.query.TupleQueryResult;
 import org.openrdf.query.algebra.StatementPattern.Scope;
 import org.openrdf.query.impl.MapBindingSet;
+import org.openrdf.repository.RepositoryConnection;
+import org.openrdf.repository.sail.SailRepository;
+import org.openrdf.sail.memory.MemoryStore;
 
 import com.bigdata.bop.Constant;
 import com.bigdata.bop.IBindingSet;
@@ -151,6 +156,46 @@ public class TestRemoteSparql11QueryBuilder extends
         
         return new Constant<IV<?,?>>(iv);
         
+    }
+
+    /** Vectoring must join with the original OPTIONAL result, not prebind it. */
+    public void test_service_optional_conflicting_binding() throws Exception {
+        final ServiceNode serviceNode = new ServiceNode(new ConstantNode(
+                makeIV(valueFactory.createURI("urn:test:service"))), new JoinGroupNode());
+        final Set<IVariable<?>> projectedVars = new LinkedHashSet<IVariable<?>>();
+        projectedVars.add(Var.var("x"));
+        serviceNode.setProjectedVars(projectedVars);
+        serviceNode.setExprImage("SERVICE <urn:test:service> { "
+                + "?s <urn:test:p> ?y OPTIONAL { ?s <urn:test:q> ?x } }");
+        final MapBindingSet input = new MapBindingSet();
+        input.addBinding("x", valueFactory.createURI("urn:test:a"));
+        final BindingSet[] inputs = new BindingSet[] { input };
+        final String query = newFixture(serviceNode, inputs).getSparqlQuery(inputs);
+
+        // The original pattern returns x=b. Its join with incoming x=a is empty.
+        final SailRepository endpoint = new SailRepository(new MemoryStore());
+        endpoint.initialize();
+        try {
+            final RepositoryConnection connection = endpoint.getConnection();
+            try {
+                connection.add(valueFactory.createURI("urn:test:s"),
+                        valueFactory.createURI("urn:test:p"), valueFactory.createURI("urn:test:y"));
+                connection.add(valueFactory.createURI("urn:test:s"),
+                        valueFactory.createURI("urn:test:q"), valueFactory.createURI("urn:test:b"));
+                final TupleQueryResult result = connection.prepareTupleQuery(
+                        QueryLanguage.SPARQL, query).evaluate();
+                try {
+                    assertFalse("Conflicting OPTIONAL result survived: " + query,
+                            result.hasNext());
+                } finally {
+                    result.close();
+                }
+            } finally {
+                connection.close();
+            }
+        } finally {
+            endpoint.shutDown();
+        }
     }
 
     /**
@@ -435,7 +480,10 @@ public class TestRemoteSparql11QueryBuilder extends
 
                 final BindingsClause bindingsClause = new BindingsClause(vars,
                         solutionsIn);
-                expected.setBindingsClause(bindingsClause);
+                final JoinGroupNode vectoringGroup = new JoinGroupNode();
+                vectoringGroup.addChild(bindingsClause);
+                vectoringGroup.addChild(expected.getWhereClause());
+                expected.setWhereClause(vectoringGroup);
             }
 
         }
@@ -596,7 +644,10 @@ public class TestRemoteSparql11QueryBuilder extends
 
                 final BindingsClause bindingsClause = new BindingsClause(vars,
                         solutionsIn);
-                expected.setBindingsClause(bindingsClause);
+                final JoinGroupNode vectoringGroup = new JoinGroupNode();
+                vectoringGroup.addChild(bindingsClause);
+                vectoringGroup.addChild(expected.getWhereClause());
+                expected.setWhereClause(vectoringGroup);
             }
 
         }
@@ -685,7 +736,10 @@ public class TestRemoteSparql11QueryBuilder extends
                 final List<IBindingSet> solutionsIn = new LinkedList<IBindingSet>();
                 final BindingsClause bindingsClause = new BindingsClause(vars,
                         solutionsIn);
-                expected.setBindingsClause(bindingsClause);
+                final JoinGroupNode vectoringGroup = new JoinGroupNode();
+                vectoringGroup.addChild(bindingsClause);
+                vectoringGroup.addChild(expected.getWhereClause());
+                expected.setWhereClause(vectoringGroup);
                 
                 {
                     vars.add(Var.var("s"));
@@ -802,7 +856,10 @@ public class TestRemoteSparql11QueryBuilder extends
                 final List<IBindingSet> solutionsIn = new LinkedList<IBindingSet>();
                 final BindingsClause bindingsClause = new BindingsClause(vars,
                         solutionsIn);
-                expected.setBindingsClause(bindingsClause);
+                final JoinGroupNode vectoringGroup = new JoinGroupNode();
+                vectoringGroup.addChild(bindingsClause);
+                vectoringGroup.addChild(expected.getWhereClause());
+                expected.setWhereClause(vectoringGroup);
                 
                 {
                     vars.add(Var.var("s"));
@@ -937,7 +994,10 @@ public class TestRemoteSparql11QueryBuilder extends
                 final List<IBindingSet> solutionsIn = new LinkedList<IBindingSet>();
                 final BindingsClause bindingsClause = new BindingsClause(vars,
                         solutionsIn);
-                expected.setBindingsClause(bindingsClause);
+                final JoinGroupNode vectoringGroup = new JoinGroupNode();
+                vectoringGroup.addChild(bindingsClause);
+                vectoringGroup.addChild(expected.getWhereClause());
+                expected.setWhereClause(vectoringGroup);
                 
                 {
                     vars.add(Var.var("s"));
