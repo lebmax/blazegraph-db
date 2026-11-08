@@ -66,6 +66,7 @@ public class TestAll extends TestCase {
 
         // commitTime => (HALog|Snapshot)Record test suites.
         suite.addTestSuite(TestHALogIndex.class);
+        suite.addTestSuite(TestHALogPurge.class);
         suite.addTestSuite(TestSnapshotIndex.class);
         suite.addTestSuite(TestHAFileUrls.class);
         suite.addTestSuite(TestDumpLogDigests.class);

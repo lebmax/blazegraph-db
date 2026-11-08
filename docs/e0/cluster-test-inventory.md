@@ -2,7 +2,8 @@
 
 Размеры текущих агрегатов проверены через `suite().countTestCases()` на Axiom
 JDK 8u482. Вызов подсчёта не запускает тесты. Результаты запусков приведены
-в [отчёте восстановления](2026-11-08-cluster-restoration.md).
+в [отчёте восстановления](2026-11-08-cluster-restoration.md) и
+[проверке ожидания HALog purge](2026-11-08-halog-purge-wait.md).
 
 | Entry point | Случаев | Что проверяет |
 | --- | ---: | --- |
@@ -10,11 +11,11 @@ JDK 8u482. Вызов подсчёта не запускает тесты. Ре�
 | `com.bigdata.quorum.zk.TestAll` | 23 | ZooKeeper-backed quorum, singleton и HA3 |
 | `com.bigdata.jini.TestAll` | 19 | Конфигурация, клиенты и запуск сервисов |
 | `com.bigdata.rdf.store.TestScaleOutTripleStoreWithJiniFederation` | 261 | Triple store, загрузка RDF и inference через federation |
-| `com.bigdata.journal.jini.ha.TestAll` | 154 | Journal, replication, HA1/2/3, snapshot/restore, failover, load balancers, stress и локальные регрессии |
+| `com.bigdata.journal.jini.ha.TestAll` | 159 | Journal, replication, HA1/2/3, snapshot/restore, failover, load balancers, stress и локальные регрессии |
 
 Дополнительно runner выбирает `com.bigdata.jini.start.config.TestServiceConfiguration`:
 один исходный тест и три новых регрессионных теста генерации River configuration.
-Они не входят в корневой Jini-агрегат. Итого текущий runner выбирает **479** случаев.
+Они не входят в корневой Jini-агрегат. Итого текущий runner выбирает **484** случая.
 
 ## Maven selection
 
@@ -47,8 +48,9 @@ ZooKeeper и River lookup должны быть запущены отдельн�
 HA-тесты запускают journal services отдельными JVM. Исходный агрегат содержит 23 конкретных
 suite-класса: HALog/snapshot indices, raw transfers, HA1/2/3, snapshot/restore,
 смену лидера, принудительные остановки, отмену запросов, четыре load balancer
-варианта и `StressTestHA3JournalServer`. Добавлены четыре локальных unit test cases:
-`TestHA3JustKills.TestKillTrigger`, `TestHAFileUrls` и `TestDumpLogDigests`.
+варианта и `StressTestHA3JournalServer`. Добавлены девять локальных unit test cases:
+`TestHA3JustKills.TestKillTrigger`, `TestHAFileUrls`, `TestDumpLogDigests` и
+пять проверок `TestHALogPurge`.
 Они не запускают сервисы.
 
 Исходный `runKnownBadTests=false` сохранён. Три включённых метода сразу возвращаются

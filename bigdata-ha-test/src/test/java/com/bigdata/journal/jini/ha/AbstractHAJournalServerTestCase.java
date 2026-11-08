@@ -32,6 +32,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.math.BigInteger;
@@ -949,7 +950,9 @@ public abstract class AbstractHAJournalServerTestCase extends TestCase3 {
     }
 
     /**
-     * Verify that NO HALog files exist for the specified commit points.
+     * Await asynchronous purge, then verify that NO HALog files exist for the
+     * specified commit points. Only FileNotFoundException proves absence;
+     * other failures must not be accepted as a successful purge.
      * <p>
      * Note: The HALog files are identified by the commit counter of the closing
      * commit point. The commit counter is ZERO (0) until the first commit.
@@ -970,30 +973,43 @@ public abstract class AbstractHAJournalServerTestCase extends TestCase3 {
             final long lastCommitCounter, final HAGlue[] services)
             throws NoSuchAlgorithmException, DigestException, IOException {
 
+        final long begin = System.nanoTime();
+        final long timeout = TimeUnit.SECONDS.toNanos(5);
+
         for (long commitCounter = firstCommitCounter; commitCounter <= lastCommitCounter; commitCounter++) {
 
             for (int i = 0; i < services.length; i++) {
 
                 final HAGlue haGlue = services[i];
 
-                try {
-                    /*
-                     * Request the digest.
-                     * 
-                     * Note: This will through a (wrapped) FileNotFoundException
-                     * if the corresponding HALog does not exist.
-                     */
-                    haGlue.computeHALogDigest(
-                            new HALogDigestRequest(commitCounter)).getDigest();
-                    fail("HALog exists: commitCounter=" + commitCounter
-                            + ", service=" + services[i]);
-                } catch (IOException ex) {
-                    if (InnerCause
-                            .isInnerCause(ex, FileNotFoundException.class)) {
-                        // Expected exception.
-                        continue;
+                while (true) {
+                    try {
+                        haGlue.computeHALogDigest(
+                                new HALogDigestRequest(commitCounter)).getDigest();
+                    } catch (IOException ex) {
+                        if (InnerCause.isInnerCause(ex,
+                                FileNotFoundException.class)) {
+                            // The file has actually been purged.
+                            break;
+                        }
+                        throw ex;
                     }
 
+                    final long remaining = timeout - (System.nanoTime() - begin);
+                    if (remaining <= 0) {
+                        fail("HALog exists after awaiting asynchronous purge: commitCounter="
+                                + commitCounter + ", service=" + haGlue);
+                    }
+                    try {
+                        TimeUnit.NANOSECONDS.sleep(Math.min(remaining,
+                                TimeUnit.MILLISECONDS.toNanos(10)));
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        final InterruptedIOException failure = new InterruptedIOException(
+                                "Interrupted while awaiting HALog purge");
+                        failure.initCause(ex);
+                        throw failure;
+                    }
                 }
                 
             }
