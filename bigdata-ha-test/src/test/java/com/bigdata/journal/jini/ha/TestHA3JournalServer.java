@@ -1176,6 +1176,10 @@ public class TestHA3JournalServer extends AbstractHA3JournalServerTestCase {
 		// Wait until the quorum is fully met. After RESYNC
 		assertEquals(token, awaitFullyMetQuorum(20));
 
+        awaitHAStatus(new HAStatusEnum[] { HAStatusEnum.Leader,
+                HAStatusEnum.Follower, HAStatusEnum.Follower },
+                new HAGlue[] { serverA, serverB, serverC });
+
 		log.info("FULLY MET");
 		
         // Await LOAD, but with a timeout.

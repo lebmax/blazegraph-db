@@ -602,7 +602,8 @@ public abstract class AbstractHA3JournalServerTestCase extends
             if (log.isInfoEnabled())
                 log.info(member.getServiceName() + ": " + status);
             
-            assertFalse(HAStatusEnum.NotReady == status);
+            assertFalse("Service " + serviceName(member) + " is " + status,
+                    HAStatusEnum.NotReady == status);
             
         }
         
