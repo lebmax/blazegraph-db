@@ -2026,11 +2026,18 @@ public class RemoteRepositoryManager extends RemoteRepositoryBase implements Aut
         JettyResponseListener response = null;
         try {
 
-            // Note: No response body is expected.
-
             response = doConnect(opts);
 
             checkResponseCode(response);
+
+            // A successful update may include a response entity. Drain it so
+            // Jetty can complete the exchange and reuse the pooled connection.
+            try (InputStream input = response.getInputStream()) {
+                final byte[] buffer = new byte[1024];
+                while (input.read(buffer) != -1) {
+                    // The update API does not expose the response body.
+                }
+            }
 
         } finally {
 
@@ -2047,13 +2054,9 @@ public class RemoteRepositoryManager extends RemoteRepositoryBase implements Aut
                     log.warn(ex);
                 }
             } else {
-                /*
-                 * Note: We are not reading anything from the response so I
-                 * THINK that we do not need to call listener.abort(). If we do
-                 * need to call this, then we might need to distinguish between
-                 * a normal response and when we read the response entity.
-                 */
-                // response.abort();
+                // Also release the exchange when status checking or reading
+                // the entity fails.
+                response.abort();
             }
             if (listener != null) {
                 // Notify client-side listener.
