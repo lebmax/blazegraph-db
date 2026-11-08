@@ -1,0 +1,54 @@
+services:
+  zk1:
+    image: blazegraph-e0-zookeeper:3.4.5
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    environment:
+      ZOO_MY_ID: "1"
+    ports:
+      - "127.0.0.1:12181:2181"
+    volumes:
+      - zk1-data:/var/lib/zookeeper
+    networks:
+      - ensemble
+
+  zk2:
+    image: blazegraph-e0-zookeeper:3.4.5
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    environment:
+      ZOO_MY_ID: "2"
+    ports:
+      - "127.0.0.1:12182:2181"
+    volumes:
+      - zk2-data:/var/lib/zookeeper
+    networks:
+      - ensemble
+
+  zk3:
+    image: blazegraph-e0-zookeeper:3.4.5
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    environment:
+      ZOO_MY_ID: "3"
+    ports:
+      - "127.0.0.1:12183:2181"
+    volumes:
+      - zk3-data:/var/lib/zookeeper
+    networks:
+      - ensemble
+
+networks:
+  ensemble:
+    internal: false
+
+volumes:
+  zk1-data:
+  zk2-data:
+  zk3-data:

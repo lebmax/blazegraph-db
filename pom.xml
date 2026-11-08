@@ -204,6 +204,8 @@ Copyright 2010 by TalkingTrends (Amsterdam, The Netherlands)
   <properties>
     <icu.version>4.8</icu.version>
     <zookeeper.version>3.4.5</zookeeper.version>
+    <jini.version>2.2.1</jini.version>
+    <junit3.version>${junit4.version}</junit3.version>
     <sesame.version>2.7.12</sesame.version>
     <jsonld.version>0.5.1</jsonld.version>
     <semargl.version>0.6.1</semargl.version>
@@ -238,6 +240,20 @@ Copyright 2010 by TalkingTrends (Amsterdam, The Netherlands)
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <profiles>
+    <profile>
+      <id>cluster-integration</id>
+      <properties>
+        <cluster.rerunFailingTestsCount>0</cluster.rerunFailingTestsCount>
+      </properties>
+      <modules>
+        <module>bigdata-zookeeper</module>
+        <module>bigdata-zookeeper-test</module>
+        <module>bigdata-jini</module>
+        <module>bigdata-jini-test</module>
+        <module>bigdata-ha</module>
+        <module>bigdata-ha-test</module>
+      </modules>
+    </profile>
     <profile>
       <id>maven-central</id>
       <!-- 
