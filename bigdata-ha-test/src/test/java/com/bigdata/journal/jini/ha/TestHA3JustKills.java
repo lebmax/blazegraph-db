@@ -89,50 +89,45 @@ public class TestHA3JustKills extends AbstractHA3JournalServerTestCase {
     public void testABC_LiveLoadRemainsMet_kill_C() throws Exception {
 
         // enforce join order
-		final ABC startup = new ABC(true /*sequential*/);
-		
-		final long token = awaitFullyMetQuorum();
-		
+        final ABC startup = new ABC(true /*sequential*/);
+
+        final long token = awaitFullyMetQuorum();
+
         // await the initial KB commit on all services.
         awaitCommitCounter(1L, new HAGlue[] { startup.serverA, startup.serverB,
                 startup.serverC });
 
-        // start concurrent task loads that continue until fully met
-        final FutureTask<Void> ft = new FutureTask<Void>(new LargeLoadTask(
-                token));
+        try (ControlledLoadTask ft = new ControlledLoadTask(token)) {
+            executorService.submit(ft);
+            ft.awaitStarted();
 
-        executorService.submit(ft);
+            // Verify LOAD is active before killing the last follower.
+            assertFalse(ft.isDone());
 
-        // allow load head start
-        Thread.sleep(2000/* ms */);
+            log.warn("ZOOKEEPER\n" + dumpZoo());
+            kill(startup.serverC);
 
-		// Verify load is still running.
-		assertFalse(ft.isDone());
-		
-		// Dump Zookeeper
-		log.warn("ZOOKEEPER\n" + dumpZoo());
-		
-		kill(startup.serverC);
+            // Crash detection may wait for the ZooKeeper session to expire.
+            awaitPipeline(getZKSessionTimeout() + awaitQuorumTimeout,
+                    TimeUnit.MILLISECONDS,
+                    new HAGlue[] { startup.serverA, startup.serverB });
 
-		// Note: Automatic.
-//		startup.serverA.submit(new ForceRemoveService(getServiceCId()), true).get();
+            // token must remain unchanged to indicate same quorum
+            assertEquals(token, awaitMetQuorum());
 
-		awaitPipeline(20, TimeUnit.SECONDS, new HAGlue[] {startup.serverA, startup.serverB});
+            awaitMembers(new HAGlue[] { startup.serverA, startup.serverB });
+            awaitJoined(new HAGlue[] { startup.serverA, startup.serverB });
 
-        // token must remain unchanged to indicate same quorum
-        assertEquals(token, awaitMetQuorum());
+            assertEquals(token, awaitMetQuorum());
+            assertFalse(ft.isDone());
+            ft.finish();
 
-        awaitMembers(new HAGlue[] {startup.serverA, startup.serverB});
-		awaitJoined(new HAGlue[] {startup.serverA, startup.serverB});
+            // Await successful LOAD completion on the remaining services.
+            ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
 
-		// token must remain unchanged to indicate same quorum
-		assertEquals(token, awaitMetQuorum());
-		
-        // Await LOAD, but with a timeout.
-        ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
-
-        // token must remain unchanged to indicate same quorum
-        assertEquals(token, awaitMetQuorum());
+            assertEquals(token, awaitMetQuorum());
+            assertDigestsEquals(new HAGlue[] { startup.serverA, startup.serverB });
+        }
 
     }
     
@@ -219,48 +214,43 @@ public class TestHA3JustKills extends AbstractHA3JournalServerTestCase {
     public void testABC_LiveLoadRemainsMet_kill_B() throws Exception {
 
         // enforce join order
-		final ABC startup = new ABC(true /*sequential*/);
-		
-		final long token = awaitFullyMetQuorum();
-		
+        final ABC startup = new ABC(true /*sequential*/);
+
+        final long token = awaitFullyMetQuorum();
+
         // await the initial KB commit on all services.
         awaitCommitCounter(1L, new HAGlue[] { startup.serverA, startup.serverB,
                 startup.serverC });
 
-        // start concurrent task loads that continue until fully met
-        final FutureTask<Void> ft = new FutureTask<Void>(new LargeLoadTask(
-                token));
+        try (ControlledLoadTask ft = new ControlledLoadTask(token)) {
+            executorService.submit(ft);
+            ft.awaitStarted();
 
-        executorService.submit(ft);
+            // Verify LOAD is active before killing the first follower.
+            assertFalse(ft.isDone());
 
-        // allow load head start
-        Thread.sleep(2000/* ms */);
+            log.warn("ZOOKEEPER\n" + dumpZoo());
+            kill(startup.serverB);
 
-		// Verify load is still running.
-		assertFalse(ft.isDone());
-		
-		// Dump Zookeeper
-		log.warn("ZOOKEEPER\n" + dumpZoo());
-		
-		kill(startup.serverB);
-		
-		// Note: automatic.
-//		startup.serverA.submit(new ForceRemoveService(getServiceBId()), true).get();
+            // Crash detection may wait for the ZooKeeper session to expire.
+            awaitPipeline(getZKSessionTimeout() + awaitQuorumTimeout,
+                    TimeUnit.MILLISECONDS,
+                    new HAGlue[] { startup.serverA, startup.serverC });
 
-		awaitPipeline(10, TimeUnit.SECONDS, new HAGlue[] {startup.serverA, startup.serverC});
-		
-		// also check members and joined
-		awaitMembers(new HAGlue[] {startup.serverA, startup.serverC});
-		awaitJoined(new HAGlue[] {startup.serverA, startup.serverC});
+            awaitMembers(new HAGlue[] { startup.serverA, startup.serverC });
+            awaitJoined(new HAGlue[] { startup.serverA, startup.serverC });
 
-		// token must remain unchanged to indicate same quorum
-		assertEquals(token, awaitMetQuorum());
-		
-        // Await LOAD, but with a timeout.
-        ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            // token must remain unchanged to indicate same quorum
+            assertEquals(token, awaitMetQuorum());
+            assertFalse(ft.isDone());
+            ft.finish();
 
-        // token must remain unchanged to indicate same quorum
-        assertEquals(token, awaitMetQuorum());
+            // Await successful LOAD completion on the remaining services.
+            ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+
+            assertEquals(token, awaitMetQuorum());
+            assertDigestsEquals(new HAGlue[] { startup.serverA, startup.serverC });
+        }
 
     }
 

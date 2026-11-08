@@ -23,10 +23,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 package com.bigdata.ha;
 
-import java.io.Externalizable;
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -710,7 +707,7 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
                 final InetSocketAddress addrNext = service
                         .getWritePipelineAddr();
 
-                return new PipelineState<S>(service, addrNext);
+                return new PipelineState<S>(downStreamId, service, addrNext);
                 
             } catch (IOException e) {
 
@@ -2025,7 +2022,8 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
                     futLoc.cancel(true/* mayInterruptIfRunning */);
                 }
             } catch (Throwable t) {
-                launderPipelineException(true/* isLeader */, token, member, outerClass, t);
+                launderPipelineException(true/* isLeader */, token, member,
+                        outerClass, downstream.serviceId, t);
             }
         }
         
@@ -2042,13 +2040,17 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
      *            The {@link QuorumMember} for this service.
      * @param outerClass
      *            The outer class - required for {@link #resetPipeline()}.
+     * @param downstreamId
+     *            The downstream target of this attempt. It must come from the
+     *            cached proxy state, since quorum
+     *            membership can change before the failed request returns.
      * @param t
      *            The throwable.
      */
     static private <S extends HAPipelineGlue> void launderPipelineException(
             final boolean isLeader, final long token,
             final QuorumMember<S> member, final QuorumPipelineImpl<S> outerClass,
-            final Throwable t) {
+            final UUID downstreamId, final Throwable t) {
 
         log.warn("isLeader=" + isLeader + ", t=" + t, t);
         
@@ -2074,8 +2076,12 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
 
         final UUID thisService = member.getServiceId();
 
-        final UUID[] priorAndNext = member.getQuorum().getPipelinePriorAndNext(
-                member.getServiceId());
+        // The current upstream is diagnostic context only. The failed target
+        // must not be replaced by a new downstream after a topology change.
+        final UUID[] neighbors = member.getQuorum().getPipelinePriorAndNext(
+                thisService);
+        final UUID[] priorAndNext = new UUID[] {
+                neighbors == null ? null : neighbors[0], downstreamId };
 
         if (isLeader) {
 
@@ -2646,7 +2652,7 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
                 }
             } catch (Throwable t) {
                 launderPipelineException(false/* isLeader */, token, member,
-                        outerClass, t);
+                        outerClass, downstream.serviceId, t);
             }
             // done
             return null;
@@ -2698,65 +2704,33 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
             final int rem) throws Exception;
 
     /**
-     * A utility class that bundles together the Internet address and port at which
-     * the downstream service will accept and relay cache blocks for the write
-     * pipeline and the remote interface which is used to communicate with that
-     * service using RMI.
+     * Local snapshot of a downstream service's identity, pipeline address and
+     * RMI proxy. Keep these together so that a failed attempt is attributed to
+     * its actual target even if the quorum watcher has already removed it.
      * 
      * @author <a href="mailto:thompsonbry@users.sourceforge.net">Bryan Thompson</a>
      */
-    private
-    static
-    class PipelineState<S extends HAPipelineGlue> implements Externalizable {
+    private static final class PipelineState<S extends HAPipelineGlue> {
 
-        /**
-         * 
-         */
-        private static final long serialVersionUID = 1L;
+        public final UUID serviceId;
 
         /**
          * The Internet address and port at which the downstream service will accept
          * and relay cache blocks for the write pipeline.
          */
-        public InetSocketAddress addr;
+        public final InetSocketAddress addr;
 
         /**
          * The remote interface for the downstream service which will accept and
          * relay cache blocks from this service.
-         * <p>
-         * Note: In order for an instance of this class to be serializable, an
-         * exported proxy for the {@link HAGlue} object must be used here rather
-         * than the local object reference.
          */
-        public S service;
+        public final S service;
 
-        /** Deserialization constructor. */
-        @SuppressWarnings("unused")
-        public PipelineState() {
-
-        }
-
-        public PipelineState(final S service, final InetSocketAddress addr) {
+        public PipelineState(final UUID serviceId, final S service,
+                final InetSocketAddress addr) {
+            this.serviceId = serviceId;
             this.service = service;
             this.addr = addr;
-        }
-
-        @SuppressWarnings("unchecked")
-        public void readExternal(final ObjectInput in) throws IOException,
-                ClassNotFoundException {
-
-            addr = (InetSocketAddress) in.readObject();
-
-            service = (S) in.readObject();
-
-        }
-
-        public void writeExternal(final ObjectOutput out) throws IOException {
-
-            out.writeObject(addr);
-
-            out.writeObject(service);
-
         }
 
     }
