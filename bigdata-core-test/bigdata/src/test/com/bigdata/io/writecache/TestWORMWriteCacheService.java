@@ -124,6 +124,25 @@ public class TestWORMWriteCacheService extends TestCase3 {
         super(name);
     }
 
+    private int acquiredBuffersBeforeTest;
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        acquiredBuffersBeforeTest = DirectBufferPool.INSTANCE.getAcquiredBufferCount();
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        try {
+            assertEquals("The test must return all acquired direct buffers",
+                    acquiredBuffersBeforeTest,
+                    DirectBufferPool.INSTANCE.getAcquiredBufferCount());
+        } finally {
+            super.tearDown();
+        }
+    }
+
     /**
      * The size of a {@link WriteCache} buffer.
      */
@@ -423,6 +442,17 @@ public class TestWORMWriteCacheService extends TestCase3 {
             
             return serviceImpl;
 
+        }
+
+        @Override
+        public void terminate() {
+            try {
+                // Drain removal while the quorum is still available to pending events.
+                pipelineImpl.pipelineRemove();
+                pipelineImpl.processEvents();
+            } finally {
+                super.terminate();
+            }
         }
 
 //        @Override
