@@ -48,6 +48,7 @@ import java.util.zip.Adler32;
 import org.apache.log4j.Logger;
 
 import com.bigdata.ha.HAGlueBase;
+import com.bigdata.ha.HAPipelineResetRequest;
 import com.bigdata.ha.HAPipelineGlue;
 import com.bigdata.ha.IHAPipelineResetRequest;
 import com.bigdata.ha.IHAPipelineResetResponse;
@@ -509,6 +510,62 @@ public class TestWORMWriteCacheService extends TestCase3 {
         }
         
     } // MockQuorumMemberImpl
+
+    public void test_resetPipeline_whenNotInPipeline()
+            throws Exception {
+
+        final MockQuorumFixture fixture = new MockQuorumFixture();
+        final MockQuorum<HAPipelineGlue, MyMockQuorumMember<HAPipelineGlue>> quorum = new MockQuorum<HAPipelineGlue, MyMockQuorumMember<HAPipelineGlue>>(
+                3, fixture);
+        final MyMockQuorumMember<HAPipelineGlue> member = new MyMockQuorumMember<HAPipelineGlue>(
+                fixture, "logicalService_" + getName());
+
+        try {
+
+            fixture.start();
+            quorum.start(member);
+
+            final QuorumActor<?, ?> actor = quorum.getActor();
+            actor.memberAdd();
+            fixture.awaitDeque();
+
+            actor.pipelineAdd();
+            fixture.awaitDeque();
+            AbstractQuorumTestCase.assertCondition(new Runnable() {
+                @Override
+                public void run() {
+                    assertTrue("The member should be in the pipeline before removal",
+                            member.isPipelineMember());
+                }
+            }, 5L, TimeUnit.SECONDS);
+
+            actor.pipelineRemove();
+            fixture.awaitDeque();
+            AbstractQuorumTestCase.assertCondition(new Runnable() {
+                @Override
+                public void run() {
+                    assertFalse("The member should be absent from the pipeline",
+                            member.isPipelineMember());
+                }
+            }, 5L, TimeUnit.SECONDS);
+
+            final HAPipelineResetRequest request = new HAPipelineResetRequest(
+                    quorum.token(), member.getServiceId(), TimeUnit.SECONDS.toNanos(5L));
+            final Future<IHAPipelineResetResponse> reset = member.pipelineImpl
+                    .resetPipeline(request);
+
+            assertNotNull("Reset should return a response after local removal",
+                    reset.get(5L, TimeUnit.SECONDS));
+
+        } finally {
+
+            quorum.terminate();
+            fixture.terminate();
+
+        }
+
+    }
+
     
     /**
      * A test which looks for deadlock conditions (one buffer).

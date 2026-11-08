@@ -601,18 +601,11 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
             super.pipelineChange(oldDownStreamId, newDownStreamId);
             lock.lock();
             try {
-                if (oldDownStreamId == newDownStreamId) {
-                    // Nothing to do (both null or same UUID reference).
+                if (oldDownStreamId == null && newDownStreamId == null) {
                     return;
                 }
-                if (oldDownStreamId != null && newDownStreamId != null
-                        && oldDownStreamId.equals(newDownStreamId)) {
-                    /*
-                     * Nothing to do. The pipeline is already configured
-                     * correctly.
-                     */
-                    return;
-                }
+                // A coalesced remove/add can preserve the UUID but replace its
+                // process, proxy and transport, or follow a pipeline reset.
                 // The address of the next service in the pipeline.
 //                final InetSocketAddress addrNext = getAddrNext(newDownStreamId);
                 final PipelineState<S> nextState = getAddrNext(newDownStreamId);
@@ -1304,6 +1297,9 @@ abstract public class QuorumPipelineImpl<S extends HAPipelineGlue> /*extends
 
             final UUID[] priorAndNext = member.getQuorum()
                     .getPipelinePriorAndNext(member.getServiceId());
+
+            if (priorAndNext == null)
+                return false;
             
             if (psid.equals(priorAndNext[0]))
                 return true;

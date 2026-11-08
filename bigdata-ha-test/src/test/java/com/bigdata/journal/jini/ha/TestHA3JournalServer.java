@@ -2888,60 +2888,46 @@ public class TestHA3JournalServer extends AbstractHA3JournalServerTestCase {
 
         // enforce join order
         final ABC startup = new ABC(true /*sequential*/);
-        
+
         final long token = awaitFullyMetQuorum();
-        
-        // start concurrent task loads that continue until fully met
-        final FutureTask<Void> ft = new FutureTask<Void>(new LargeLoadTask(
-                token, true));
 
-        executorService.submit(ft);
+        try (ControlledLoadTask ft = new ControlledLoadTask(token)) {
+            executorService.submit(ft);
 
-        // allow load head start
-        Thread.sleep(300/* ms */);
+            ft.awaitStarted();
 
-        // Verify load is still running.
-        assertFalse(ft.isDone());
-        
-        // shutdown C, the final follower
-        shutdownC();
-        awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB});
+            // Verify load is still running.
+            assertFalse(ft.isDone());
 
-        // And no longer joined.
-        awaitJoined(new HAGlue[] {startup.serverA, startup.serverB});
+            // shutdown C, the final follower
+            shutdownC();
+            awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB});
 
-        // token must remain unchanged to indicate same quorum
-        assertEquals(token, awaitMetQuorum());
+            // And no longer joined.
+            awaitJoined(new HAGlue[] {startup.serverA, startup.serverB});
 
-        // restart C.
-        final HAGlue serverC2 = startC();
+            // token must remain unchanged to indicate same quorum
+            assertEquals(token, awaitMetQuorum());
 
-        // C comes back at the end of the pipeline.
-        awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB, serverC2});
-        
-        // And Joins.
-        // awaitJoined(new HAGlue[] {startup.serverA, startup.serverB, serverC2});
-        
-        // Await fully met quorum *before* LOAD is done.
-        assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+            // restart C.
+            final HAGlue serverC2 = startC();
 
-        // Verify fully met.
-        assertTrue(quorum.isQuorumFullyMet(token));
+            // C comes back at the end of the pipeline.
+            awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB, serverC2});
 
-        /*
-        // Await LOAD, but with a timeout.
-        ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
-        // no delay needed since commit2Phase should ensure stores all synced
-        
-        try {
-        	assertDigestsEquals(new HAGlue[] { startup.serverA, startup.serverB, serverC2 });
-        } catch (final AssertionFailedError afe) {
-        	shutdownA();
-        	shutdownB();
-        	shutdownC();
-        	throw afe;
+            // And Joins.
+            // awaitJoined(new HAGlue[] {startup.serverA, startup.serverB, serverC2});
+
+            // Await fully met quorum *before* LOAD is done.
+            assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+
+            // Verify fully met.
+            assertTrue(quorum.isQuorumFullyMet(token));
+
+            ft.finish();
+            ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            assertDigestsEquals(new HAGlue[] { startup.serverA, startup.serverB, serverC2 });
         }
-        */
     }
     
     /**
@@ -3065,64 +3051,42 @@ public class TestHA3JournalServer extends AbstractHA3JournalServerTestCase {
 
         // enforce join order
         final ABC startup = new ABC(true /*sequential*/);
-        
+
         final long token = awaitFullyMetQuorum();
-        
-        // start concurrent task loads that continue until fully met
-        final FutureTask<Void> ft = new FutureTask<Void>(new LargeLoadTask(
-                token, true));
 
-        executorService.submit(ft);
+        try (ControlledLoadTask ft = new ControlledLoadTask(token)) {
+            executorService.submit(ft);
 
-        // allow load head start
-        Thread.sleep(300/* ms */);
+            ft.awaitStarted();
 
-        // Verify load is still running.
-        assertFalse(ft.isDone());
-        
-        // shutdown B, the 1st follower. This forces a pipeline reorg.
-        shutdownB();
-        awaitPipeline(new HAGlue[] {startup.serverA, startup.serverC});
+            // Verify load is still running.
+            assertFalse(ft.isDone());
 
-        // token must remain unchanged to indicate same quorum
-        assertEquals(token, awaitMetQuorum());
+            // shutdown B, the 1st follower. This forces a pipeline reorg.
+            shutdownB();
+            awaitPipeline(new HAGlue[] {startup.serverA, startup.serverC});
 
-        // restart B.
-        final HAGlue serverB2 = startB();
+            // token must remain unchanged to indicate same quorum
+            assertEquals(token, awaitMetQuorum());
 
-        // B comes back at the end of the pipeline.
-        awaitPipeline(new HAGlue[] {startup.serverA, startup.serverC, serverB2});
-        
-        // Await fully met quorum *before* LOAD is done.
-        assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+            // restart B.
+            final HAGlue serverB2 = startB();
 
-        // Verify fully met.
-        assertTrue(quorum.isQuorumFullyMet(token));
+            // B comes back at the end of the pipeline.
+            awaitPipeline(new HAGlue[] {startup.serverA, startup.serverC, serverB2});
 
-        // Await LOAD, but with a timeout.
-        ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
-        
-//        {
-//			final StringBuilder sb = new StringBuilder();
-//			sb.append("SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o }\n");
-//	
-//			final String query = sb.toString();
-//	
-//			// final RemoteRepository follower = getRemoteRepository(services.serverA); // try with Leader to see difference! 6537 queries (less than for follower)
-//			final RemoteRepository follower = getRemoteRepository(serverB2); // 10109 queries for 2000 transact	ons
-//	
-//			final TupleQueryResult result = follower.prepareTupleQuery(query).evaluate();
-//			
-//			log.warn("Result Follower: " + result.next().getBinding("count"));
-//		
-//			final RemoteRepository leader = getRemoteRepository(startup.serverA); // 10109 queries for 2000 transact	ons
-//			
-//			final TupleQueryResult resultLeader = leader.prepareTupleQuery(query).evaluate();
-//			
-//			log.warn("Result Leader: " + resultLeader.next().getBinding("count"));
-//        }
+            // Await fully met quorum *before* LOAD is done.
+            assertTrue(awaitFullyMetDuringLOAD2(token, ft));
 
-		// assertDigestsEquals(new HAGlue[] { startup.serverA, serverB2, startup.serverC });
+            // Verify fully met.
+            assertTrue(quorum.isQuorumFullyMet(token));
+
+            ft.finish();
+
+            // Await LOAD, but with a timeout.
+            ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            assertDigestsEquals(new HAGlue[] { startup.serverA, startup.serverC, serverB2 });
+        }
     }
 
     /**
@@ -3140,69 +3104,68 @@ public class TestHA3JournalServer extends AbstractHA3JournalServerTestCase {
 
         // enforce join order
         final ABC startup = new ABC(true /*sequential*/);
-        
+
         final long token = awaitFullyMetQuorum();
-        
-        // start concurrent task loads that continue until fully met
-        final FutureTask<Void> ft = new FutureTask<Void>(new LargeLoadTask(
-                token, true/* reallyLargeLoad */));
 
-        executorService.submit(ft);
+        try (ControlledLoadTask ft = new ControlledLoadTask(token)) {
+            executorService.submit(ft);
 
-        // allow load head start
-        Thread.sleep(300/* ms */);
+            ft.awaitStarted();
 
-        // Verify load is still running.
-        assertFalse(ft.isDone());
-        
-        // shutdown C, the final follower
-        shutdownC();
-        awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB});
+            // Verify load is still running.
+            assertFalse(ft.isDone());
 
-        // token must remain unchanged to indicate same quorum
-        assertEquals(token, awaitMetQuorum());
+            // shutdown C, the final follower
+            shutdownC();
+            awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB});
 
-        // restart C.
-        final HAGlue serverC2 = startC();
+            // token must remain unchanged to indicate same quorum
+            assertEquals(token, awaitMetQuorum());
 
-        // C comes back at the end of the pipeline.
-        awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB, serverC2});
-        
-        // wait for the quorum to fully meet during the LOAD.
-        assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+            // restart C.
+            final HAGlue serverC2 = startC();
 
-        // Double checked assertion. Should always be true per loop above.
-        assertTrue(quorum.isQuorumFullyMet(token));
+            // C comes back at the end of the pipeline.
+            awaitPipeline(new HAGlue[] {startup.serverA, startup.serverB, serverC2});
 
-        /*
-         * Now we will remove the first follower.
-         */
+            // wait for the quorum to fully meet during the LOAD.
+            assertTrue(awaitFullyMetDuringLOAD2(token, ft));
 
-        // Should already be true.
-        awaitPipeline(new HAGlue[] { startup.serverA, startup.serverB, serverC2 });
+            // Double checked assertion. Should always be true per loop above.
+            assertTrue(quorum.isQuorumFullyMet(token));
 
-        // Now remove first follower
-        shutdownB();
-        awaitPipeline(new HAGlue[] { startup.serverA, serverC2 });
+            /*
+             * Now we will remove the first follower.
+             */
 
-        // token still valid.
-        quorum.assertQuorum(token);
+            // Should already be true.
+            awaitPipeline(new HAGlue[] { startup.serverA, startup.serverB, serverC2 });
 
-        // restart B.
-        final HAGlue serverB2 = startB();
+            // Now remove first follower
+            shutdownB();
+            awaitPipeline(new HAGlue[] { startup.serverA, serverC2 });
 
-        // should return to the end of the pipeline.
-        awaitPipeline(new HAGlue[] { startup.serverA, serverC2, serverB2 });
-        
-        // Await fully met quorum *before* LOAD is done.
-        assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+            // token still valid.
+            quorum.assertQuorum(token);
 
-        // Verify fully met.
-        assertTrue(quorum.isQuorumFullyMet(token));
+            // restart B.
+            final HAGlue serverB2 = startB();
 
-        // Await LOAD, but with a timeout.
-        ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            // should return to the end of the pipeline.
+            awaitPipeline(new HAGlue[] { startup.serverA, serverC2, serverB2 });
 
+            // Await fully met quorum *before* LOAD is done.
+            assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+
+            // Verify fully met.
+            assertTrue(quorum.isQuorumFullyMet(token));
+
+            ft.finish();
+
+            // Await LOAD, but with a timeout.
+            ft.get(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            assertDigestsEquals(new HAGlue[] { startup.serverA, serverC2, serverB2 });
+        }
     }
 
     /**
@@ -3223,78 +3186,77 @@ public class TestHA3JournalServer extends AbstractHA3JournalServerTestCase {
 
         // enforce join order
         final ABC startup = new ABC(true /*sequential*/);
-        
+
         final long token = awaitFullyMetQuorum();
-        
-        // start concurrent task loads that continue until fully met
-        final FutureTask<Void> ft = new FutureTask<Void>(new LargeLoadTask(
-                token, true/* reallyLargeLoad */));
 
-        executorService.submit(ft);
+        try (ControlledLoadTask ft = new ControlledLoadTask(token)) {
+            executorService.submit(ft);
 
-        // allow load head start
-        Thread.sleep(300/* ms */);
+            ft.awaitStarted();
 
-        // Verify load is still running.
-        assertFalse(ft.isDone());
-        
-        /*
-         * Restart the first follower.
-         */
+            // Verify load is still running.
+            assertFalse(ft.isDone());
 
-        // Should already be true.
-        awaitPipeline(new HAGlue[] { startup.serverA, startup.serverB, startup.serverC });
+            /*
+             * Restart the first follower.
+             */
 
-        // Now remove first follower
-        shutdownB();
-        awaitPipeline(new HAGlue[] { startup.serverA, startup.serverC });
+            // Should already be true.
+            awaitPipeline(new HAGlue[] { startup.serverA, startup.serverB, startup.serverC });
 
-        // token still valid.
-        quorum.assertQuorum(token);
+            // Now remove first follower
+            shutdownB();
+            awaitPipeline(new HAGlue[] { startup.serverA, startup.serverC });
 
-        // restart B.
-        final HAGlue serverB2 = startB();
+            // token still valid.
+            quorum.assertQuorum(token);
 
-        // should return to the end of the pipeline.
-        awaitPipeline(new HAGlue[] { startup.serverA, startup.serverC, serverB2 });
-        
-        // Await fully met quorum *before* LOAD is done.
-        assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+            // restart B.
+            final HAGlue serverB2 = startB();
 
-        // Verify fully met.
-        assertTrue(quorum.isQuorumFullyMet(token));
+            // should return to the end of the pipeline.
+            awaitPipeline(new HAGlue[] { startup.serverA, startup.serverC, serverB2 });
 
-        /*
-         * Restart the first follower.
-         * 
-         * Note: This time C is the first follower.
-         */
-        
-        // Should already be true.
-        awaitPipeline(new HAGlue[] { startup.serverA, startup.serverC, serverB2 });
+            // Await fully met quorum *before* LOAD is done.
+            assertTrue(awaitFullyMetDuringLOAD2(token, ft));
 
-        // Now remove first follower
-        shutdownC();
-        awaitPipeline(new HAGlue[] { startup.serverA, serverB2 });
+            // Verify fully met.
+            assertTrue(quorum.isQuorumFullyMet(token));
 
-        // token still valid.
-        quorum.assertQuorum(token);
+            /*
+             * Restart the first follower.
+             *
+             * Note: This time C is the first follower.
+             */
 
-        // restart C.
-        final HAGlue serverC2 = startC();
+            // Should already be true.
+            awaitPipeline(new HAGlue[] { startup.serverA, startup.serverC, serverB2 });
 
-        // should return to the end of the pipeline.
-        awaitPipeline(new HAGlue[] { startup.serverA, serverB2, serverC2 });
+            // Now remove first follower
+            shutdownC();
+            awaitPipeline(new HAGlue[] { startup.serverA, serverB2 });
 
-        // Await fully met quorum *before* LOAD is done.
-        assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+            // token still valid.
+            quorum.assertQuorum(token);
 
-        // Verify fully met.
-        assertTrue(quorum.isQuorumFullyMet(token));
+            // restart C.
+            final HAGlue serverC2 = startC();
 
-        // Await LOAD, but with a timeout.
-        ft.get(2 * longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            // should return to the end of the pipeline.
+            awaitPipeline(new HAGlue[] { startup.serverA, serverB2, serverC2 });
 
+            // Await fully met quorum *before* LOAD is done.
+            assertTrue(awaitFullyMetDuringLOAD2(token, ft));
+
+            // Verify fully met.
+            assertTrue(quorum.isQuorumFullyMet(token));
+
+            ft.finish();
+
+            // Await LOAD, but with a timeout.
+            ft.get(2 * longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+            assertDigestsEquals(new HAGlue[] { startup.serverA, serverB2, serverC2 });
+        }
     }
 
     /**

@@ -42,6 +42,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -3110,6 +3111,41 @@ public abstract class AbstractHA3JournalServerTestCase extends
         }
     }
 
+    protected class ControlledLoadTask extends FutureTask<Void> implements AutoCloseable {
+
+        private final ControlledLoadSource source;
+
+        public ControlledLoadTask(final long token) throws IOException {
+            this(token, new ControlledLoadSource(longLoadTimeoutMillis));
+        }
+
+        private ControlledLoadTask(final long token, final ControlledLoadSource source) {
+            super(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    AbstractHA3JournalServerTestCase.this.new LargeLoadTask(token, source).call();
+                    source.awaitFinished(awaitQuorumTimeout, TimeUnit.MILLISECONDS);
+                    return null;
+                }
+            });
+            this.source = source;
+        }
+
+        public void awaitStarted() throws Exception {
+            source.awaitStarted(longLoadTimeoutMillis, TimeUnit.MILLISECONDS);
+        }
+
+        public void finish() {
+            source.finish();
+        }
+
+        @Override
+        public void close() throws IOException {
+            cancel(true);
+            source.close();
+        }
+    }
+
    /**
     * Task loads a large data set.
     */
@@ -3119,6 +3155,7 @@ public abstract class AbstractHA3JournalServerTestCase extends
       private final boolean reallyLargeLoad;
       private final boolean dropAll;
       private final String namespace;
+      private final String largeLoadSource;
 
       @Override
       public String toString() {
@@ -3180,6 +3217,21 @@ public abstract class AbstractHA3JournalServerTestCase extends
       public LargeLoadTask(final long token, final boolean reallyLargeLoad,
             final boolean dropAll, final String namespace) {
 
+         this(token, reallyLargeLoad, dropAll, namespace, null);
+
+      }
+
+      public LargeLoadTask(final long token, final ControlledLoadSource source) {
+
+         this(token, true, true, BigdataSail.Options.DEFAULT_NAMESPACE,
+               source.getUrl());
+
+      }
+
+      private LargeLoadTask(final long token, final boolean reallyLargeLoad,
+            final boolean dropAll, final String namespace,
+            final String largeLoadSource) {
+
          this.token = token;
 
          this.reallyLargeLoad = reallyLargeLoad;
@@ -3187,6 +3239,9 @@ public abstract class AbstractHA3JournalServerTestCase extends
          this.dropAll = dropAll;
 
          this.namespace = namespace;
+
+         this.largeLoadSource = largeLoadSource == null
+               ? getFoafFileUrl("data-3.nq.gz") : largeLoadSource;
 
       }
 
@@ -3200,7 +3255,7 @@ public abstract class AbstractHA3JournalServerTestCase extends
          sb.append("LOAD <" + getFoafFileUrl("data-1.nq.gz") + ">;\n");
          sb.append("LOAD <" + getFoafFileUrl("data-2.nq.gz") + ">;\n");
          if (reallyLargeLoad)
-            sb.append("LOAD <" + getFoafFileUrl("data-3.nq.gz") + ">;\n");
+            sb.append("LOAD <" + largeLoadSource + ">;\n");
          sb.append("INSERT {?x rdfs:label ?y . } WHERE {?x foaf:name ?y };\n");
          sb.append("PREFIX dc: <http://purl.org/dc/elements/1.1/>\n");
          sb.append("INSERT DATA\n");
