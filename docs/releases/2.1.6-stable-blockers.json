@@ -1,0 +1,106 @@
+{
+  "sourceRevision": "163a81349cc66394d27a9a8930ef5d46d0d88035",
+  "sourceRun": "20261108-cluster-all-163a813",
+  "sourceRepeat": "20261108-cluster-rdf-repeat-163a813",
+  "sourceGroupsSha256": "9ae3a9b78bb48bf632583c113001b2b951ac3a401752458353090b8e2cf5f063",
+  "rdfFailedCaseCount": 50,
+  "groups": [
+    {
+      "label": "Vocabulary и axioms отсутствуют после повторного открытия — 5 errors",
+      "failedCases": [
+        "com.bigdata.rdf.axioms.TestAxioms#test_NoAxioms",
+        "com.bigdata.rdf.axioms.TestAxioms#test_OwlAxioms",
+        "com.bigdata.rdf.axioms.TestAxioms#test_RdfsAxioms",
+        "com.bigdata.rdf.lexicon.TestVocabulary#test_NoVocabulary",
+        "com.bigdata.rdf.lexicon.TestVocabulary#test_RdfsVocabulary"
+      ],
+      "count": 5
+    },
+    {
+      "label": "Ошибки RMI-сериализации — 13 errors",
+      "failedCases": [
+        "com.bigdata.rdf.lexicon.TestSubjectCentricFullTextIndex#test_MultiSubject",
+        "com.bigdata.rdf.lexicon.TestSubjectCentricFullTextIndex#test_SingleSubject",
+        "com.bigdata.rdf.rules.TestBackchainTypeResourceIterator#test_backchain_foo_type_resource",
+        "com.bigdata.rdf.rules.TestBackchainTypeResourceIterator#test_noneBound",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_LUBM_U1_As_Fast_PipelineJoins",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_LUBM_U1_As_Full_PipelineJoins",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_SampleData_Fast_PipelineJoins",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_SampleData_Full_PipelineJoins",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_Small_Fast_PipelineJoins",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_Small_Full_PipelineJoins",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_TestOwlSameAs_Fast_Pipeline",
+        "com.bigdata.rdf.rules.TestDatabaseAtOnceClosure#test_fixedPoint_TestOwlSameAs_Full_PipelineJoins",
+        "com.bigdata.rdf.spo.TestSPORelation#test_runRule"
+      ],
+      "count": 13
+    },
+    {
+      "label": "Локальный BTree приводится к IClientIndex — 11 случаев",
+      "failedCases": [
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_assertAll_01",
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_closurecorrectness",
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_downgradeExplicitToInference",
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_infiniteloop",
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_retractAll_01",
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_retractWhenStatementSupportsExplicitStatement",
+        "com.bigdata.rdf.rules.TestTruthMaintenance#test_stress",
+        "com.bigdata.rdf.store.TestDataLoader#test_DataLoader_loadResource01",
+        "com.bigdata.rdf.store.TestDataLoader#test_durableQueues01_incrementalCommit_batchClosure",
+        "com.bigdata.rdf.store.TestDataLoader#test_durableQueues02_batchCommit_batchClosure",
+        "com.bigdata.rdf.store.TestDataLoader#test_durableQueues02_batchCommit_incrementalClosure"
+      ],
+      "count": 11
+    },
+    {
+      "label": "Ошибки асинхронной загрузки RDF — 10 errors",
+      "failedCases": [
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_bsbm_pc100",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_bsbm_pc100_quadsMode",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_little_trig_quadsMode",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_little_ttl_quadsMode",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_sampleData",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_sampleData_quadsMode",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_small",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_smallWithBlobs",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_smallWithBlobs_quadsMode",
+        "com.bigdata.rdf.rio.TestAsynchronousStatementBufferFactory#test_loadAndVerify_small_quadsMode"
+      ],
+      "count": 10
+    },
+    {
+      "label": "Результат отличается от ожидаемого — 8 failures",
+      "failedCases": [
+        "com.bigdata.rdf.rules.TestRuleFastClosure_11_13#test_RuleFastForwardClosure11",
+        "com.bigdata.rdf.rules.TestRuleFastClosure_11_13#test_RuleFastForwardClosure13",
+        "com.bigdata.rdf.rules.TestRuleOwlHasValue#test_OwlHasValue",
+        "com.bigdata.rdf.rules.TestSlice#test_slice",
+        "com.bigdata.rdf.store.TestBulkFilter#test_filterOut",
+        "com.bigdata.rdf.store.TestTripleStore#test_addRemove_sesameAPI",
+        "com.bigdata.rdf.store.TestTripleStore#test_getStatementsUsingTriplePatterns",
+        "com.bigdata.rdf.store.TestTripleStore#test_rangeCounts_toldBNodes"
+      ],
+      "count": 8
+    },
+    {
+      "label": "ZooKeeper lock при очистке — 2 errors",
+      "failedCases": [
+        "com.bigdata.rdf.rules.TestCompareFullAndFastClosure#test_compareEntailments",
+        "com.bigdata.rdf.rules.TestModelsEqual#test_modelsEqual"
+      ],
+      "count": 2
+    },
+    {
+      "label": "Неподдерживаемая операция full-text index — 1 error",
+      "failedCases": [
+        "com.bigdata.rdf.lexicon.TestFullTextIndex#test_rebuildIndex"
+      ],
+      "count": 1
+    }
+  ],
+  "intermittentHA": [
+    "com.bigdata.journal.jini.ha.TestHAJournalServerOverride#test_ABC_forceRemoveService_C"
+  ],
+  "subsequentFix": "d52f54edc59835746976e6630ec769052bb757f7",
+  "subsequentFixScope": "kill_B/C synchronization and failed downstream attribution; 15 HA and 9 core targeted checks passed; fresh full run still required"
+}

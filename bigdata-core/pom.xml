@@ -29,12 +29,12 @@ Copyright 2010 by TalkingTrends (Amsterdam, The Netherlands)
   <parent>
     <groupId>com.blazegraph</groupId>
     <artifactId>blazegraph-parent</artifactId>
-    <version>2.1.6-SNAPSHOT</version>
+    <version>2.1.6-rc.1</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <groupId>com.blazegraph</groupId>
   <artifactId>bigdata-core</artifactId>
-  <version>2.1.6-SNAPSHOT</version>
+  <version>2.1.6-rc.1</version>
   <packaging>jar</packaging>
   <name>Blazegraph Core</name>
   <description>Blazegraph(TM) DB Core Platform.  It contains all Blazegraph DB dependencies other than Blueprints.</description>
@@ -118,15 +118,11 @@ Copyright 2010 by TalkingTrends (Amsterdam, The Netherlands)
                   <format property="build.timestamp" pattern="yyyy/MM/dd HH:mm:ss z" locale="en,US"/>
                 </tstamp>
                 <property environment="env"/>
-                <loadfile property="git.branch" srcFile="../.git/HEAD">
-                  <filterchain>
-                    <linecontainsregexp>
-                      <regexp pattern="^ref: (.*)$"/>
-                    </linecontainsregexp>
-                    <replaceregex pattern="^ref: (.*)$" replace="\1"/>
-                    <striplinebreaks/>
-                  </filterchain>
-                </loadfile>
+                <exec executable="git" outputproperty="git.branch" failonerror="true">
+                  <arg value="rev-parse"/>
+                  <arg value="--symbolic-full-name"/>
+                  <arg value="HEAD"/>
+                </exec>
                 <!-- See BLZG-1688 -->
                 <!-- /usr/bin/git must be in the path -->
                 <exec executable="git" outputproperty="git.commit">

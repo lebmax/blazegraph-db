@@ -3,6 +3,8 @@ Blazegraph™ DB is a ultra high-performance graph database supporting Blueprint
 
 ### Development of this fork ###
 
+Current fork release: **[2.1.6-rc.1](docs/releases/2.1.6-rc.1.md)**, built for Java 8. This is a prerelease; the remaining validation work is tracked in the [stable release checklist](docs/releases/2.1.6-stable.md).
+
 [Единый план развития](docs/plans/2026-11-07-blazegraph-development-plan.md): Java 8 → 11 → 17 → 21 → 25, сохранение всех режимов, выбор серверной платформы, исследования памяти, Native Image и Netty, затем улучшения движка с учётом опыта WDQS/QLever.
 
 ![image](http://blog.blazegraph.com/wp-content/uploads/2015/07/blazegraph_by_systap_favicon.png)
